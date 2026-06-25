@@ -46,7 +46,7 @@ function render(ctx, state, pids) {
     let firstStopsRowY = rowsTop + rowHeight + ROW_GAP;
 
     if(firstArrival == null) {
-        drawText(ctx, "LCD no train", SCRIPT_INPUT.noTrainText, COLOR_LED_WHITE,
+        drawText(ctx, "LCD no train", SCRIPT_INPUT.noTrainText, COLOR_GREEN,
             6, firstTrainRowY + 1, w - 12, 9, 0.92 * unit, "left", true);
     } else {
         drawArrivalRow(ctx, pids, firstArrival, 0, firstTrainRowY, rowHeight, w, unit);

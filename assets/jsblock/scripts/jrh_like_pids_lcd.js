@@ -134,7 +134,7 @@ function drawMessageRow(ctx, message, rowY, rowHeight, w, unit) {
     Text.create("LCD second message")
         .text(message)
         .fontMC()
-        .color(COLOR_RED)
+        .color(COLOR_GREEN)
         .pos(6, textY)
         .size((w - 20) / scale, 9)
         .scale(scale)

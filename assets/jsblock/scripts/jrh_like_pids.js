@@ -123,7 +123,7 @@ function drawMessageRow(ctx, message, rowY, sx, sy, unit) {
     Text.create("Second message")
         .text(message)
         .fontMC()
-        .color(COLOR_RED)
+        .color(COLOR_GREEN)
         .pos(7 * sx, rowY + 2 * sy)
         .size((140 * sx) / scale, 9)
         .scale(scale)

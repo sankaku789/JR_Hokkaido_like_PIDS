@@ -3,6 +3,7 @@
     {
       "id": "jrh_like_pids",
       "name": "JR北海道風 3色方式発車標（ホーム向け）",
+      "thumbnail": "jsblock:textures/pids.png",
       "scriptFiles": [
         "jsblock:scripts/jrh_like_pids.js"
       ],
@@ -12,15 +13,13 @@
         "arrivalWarningBlinkIntervalMs": 700,
         "arrivalWarningText": "列車がまいります。",
         "directionText": "発車ご案内 Train Infomation",
-        "noTrainText": "調整中",
-        "departureSuffix": "発",
-        "destinationSuffix": "行",
-        "platformSuffix": "番線"
+        "noTrainText": "調整中"
       }
     },
     {
       "id": "jrh_like_pids_fc",
       "name": "JR北海道風 フルカラー方式発車標（ホーム向け）",
+      "thumbnail": "jsblock:textures/pids_fc.png",
       "scriptFiles": [
         "jsblock:scripts/jrh_like_pids_fc.js"
       ],
@@ -30,15 +29,13 @@
         "arrivalWarningBlinkIntervalMs": 700,
         "arrivalWarningText": "列車がまいります。",
         "directionText": "発車ご案内 Train Infomation",
-        "noTrainText": "調整中",
-        "departureSuffix": "発",
-        "destinationSuffix": "行",
-        "platformSuffix": "番線"
+        "noTrainText": "調整中"
       }
     },
     {
       "id": "jrh_like_pids_lcd",
       "name": "JR北海道風 3色方式発車標（コンコース向け）",
+      "thumbnail": "jsblock:textures/pids_lcd.png",
       "scriptFiles": [
         "jsblock:scripts/jrh_like_pids_lcd.js"
       ],
@@ -48,15 +45,13 @@
         "arrivalWarningBlinkIntervalMs": 500,
         "arrivalWarningText": "列車がまいります。",
         "directionText": "発車ご案内 Train Infomation",
-        "noTrainText": "調整中",
-        "departureSuffix": "発",
-        "destinationSuffix": "行",
-        "platformSuffix": "番線"
+        "noTrainText": "調整中"
       }
     },
     {
       "id": "jrh_like_pids_lcd_fc",
       "name": "JR北海道風 フルカラー方式発車標（コンコース向け）",
+      "thumbnail": "jsblock:textures/pids_lcd_fc.png",
       "scriptFiles": [
         "jsblock:scripts/jrh_like_pids_lcd_fc.js"
       ],
@@ -66,10 +61,7 @@
         "arrivalWarningBlinkIntervalMs": 500,
         "arrivalWarningText": "列車がまいります。",
         "directionText": "発車ご案内 Train Infomation",
-        "noTrainText": "調整中",
-        "departureSuffix": "発",
-        "destinationSuffix": "行",
-        "platformSuffix": "番線"
+        "noTrainText": "調整中"
       }
     }
   ]

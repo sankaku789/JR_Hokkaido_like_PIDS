@@ -82,7 +82,7 @@ function render(ctx, state, pids) {
 
         if(arrival == null) {
             if(row == 0) {
-                drawText(ctx, "No train", SCRIPT_INPUT.noTrainText, COLOR_LED_WHITE,
+                drawText(ctx, "No train", SCRIPT_INPUT.noTrainText, COLOR_GREEN,
                     7 * sx, rowY + 2 * sy, 146 * sx, 9, 1.08 * unit, "left", true);
             }
             continue;
