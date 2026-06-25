@@ -2,7 +2,7 @@
   "pids_images": [
     {
       "id": "jrh_like_pids",
-      "name": "JR北海道風 発車標（ホーム向け）",
+      "name": "JR北海道風 3色方式発車標（ホーム向け）",
       "scriptFiles": [
         "jsblock:scripts/jrh_like_pids.js"
       ],
@@ -19,13 +19,49 @@
       }
     },
     {
+      "id": "jrh_like_pids_fc",
+      "name": "JR北海道風 フルカラー方式発車標（ホーム向け）",
+      "scriptFiles": [
+        "jsblock:scripts/jrh_like_pids_fc.js"
+      ],
+      "scriptInput": {
+        "backgroundColor": "1D2053",
+        "arrivalWarningSeconds": 25,
+        "arrivalWarningBlinkIntervalMs": 700,
+        "arrivalWarningText": "列車がまいります。",
+        "directionText": "発車ご案内 Train Infomation",
+        "noTrainText": "調整中",
+        "departureSuffix": "発",
+        "destinationSuffix": "行",
+        "platformSuffix": "番線"
+      }
+    },
+    {
       "id": "jrh_like_pids_lcd",
-      "name": "JR北海道風 発車標（コンコース向け）",
+      "name": "JR北海道風 3色方式発車標（コンコース向け）",
       "scriptFiles": [
         "jsblock:scripts/jrh_like_pids_lcd.js"
       ],
       "scriptInput": {
         "backgroundColor": "05051F",
+        "arrivalWarningSeconds": 25,
+        "arrivalWarningBlinkIntervalMs": 500,
+        "arrivalWarningText": "列車がまいります。",
+        "directionText": "発車ご案内 Train Infomation",
+        "noTrainText": "調整中",
+        "departureSuffix": "発",
+        "destinationSuffix": "行",
+        "platformSuffix": "番線"
+      }
+    },
+    {
+      "id": "jrh_like_pids_lcd_fc",
+      "name": "JR北海道風 フルカラー方式発車標（コンコース向け）",
+      "scriptFiles": [
+        "jsblock:scripts/jrh_like_pids_lcd_fc.js"
+      ],
+      "scriptInput": {
+        "backgroundColor": "1D2053",
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 500,
         "arrivalWarningText": "列車がまいります。",
