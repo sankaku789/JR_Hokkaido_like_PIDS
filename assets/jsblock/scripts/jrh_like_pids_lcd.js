@@ -112,7 +112,7 @@ function drawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit) {
 }
 
 function drawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit) {
-    let message = "停車駅: " + getCallingPoints(arrival);
+    let message = getCallingPointsMessage(arrival);
     let scale = 0.78 * unit;
     let viewportWidth = (w - 18) / scale;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
@@ -143,10 +143,10 @@ function drawMessageRow(ctx, message, rowY, rowHeight, w, unit) {
         .draw(ctx);
 }
 
-function getCallingPoints(arrival) {
+function getCallingPointsMessage(arrival) {
     let route = arrival.route();
     if(route == null) {
-        return primaryLanguage(arrival.destination());
+        return primaryLanguage(arrival.destination()) + "に止まります。";
     }
 
     let platforms = route.getPlatforms();
@@ -160,10 +160,19 @@ function getCallingPoints(arrival) {
         if(name != "" && name != previousName) {
             names.push(name);
             previousName = name;
+            if(names.length >= 2) {
+                break;
+            }
         }
     }
 
-    return names.length == 0 ? primaryLanguage(arrival.destination()) : names.join("・");
+    if(names.length == 0) {
+        return primaryLanguage(arrival.destination()) + "に止まります。";
+    }
+    if(names.length == 1) {
+        return names[0] + "に止まります。";
+    }
+    return names.join("、") + "の順に止まります。";
 }
 
 function drawText(ctx, comment, value, color, x, y, width, height, scale, align, fit) {
