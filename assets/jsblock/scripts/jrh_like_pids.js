@@ -3,15 +3,10 @@
  * MTR 4 / Minecraft 1.20.1 向け。
  */
 
+include(Resources.id("jsblock:scripts/jrh_pids_common.js"));
+
 const DEFAULT_COLOR_NAVY = 0x05051F;
-const COLOR_BLACK = 0x000000;
-const COLOR_WHITE = 0xF4F4FF;
-const COLOR_RED = 0xFF1800;
-const COLOR_GREEN = 0x16FF35;
-const COLOR_ORANGE = 0xFF9D00;
-const WHITE_TEXTURE = "mtr:textures/block/white.png";
 const MESSAGE_SWITCH_INTERVAL_MS = 6000;
-const MARQUEE_SPEED_UNITS_PER_SECOND = 1.5;
 
 function create(ctx, state, pids) {
 }
@@ -54,15 +49,10 @@ function render(ctx, state, pids) {
     let hasSecondMessage = secondMessage != null && secondMessage.trim() != "";
     let secondRowHidden = pids.isRowHidden(1);
     let secondMessageText = primaryLanguage(secondMessage);
-    let messageScale = 1.08 * unit;
-    let messageViewportWidth = (140 * sx) / messageScale;
-    let messageMarqueeDurationMs = getMarqueeDurationMs(secondMessageText, messageViewportWidth);
-    let messageCycleDuration = MESSAGE_SWITCH_INTERVAL_MS + messageMarqueeDurationMs;
+    let messageCycleDuration = MESSAGE_SWITCH_INTERVAL_MS * 2;
     let messageCycleElapsed = currentTimeMs % messageCycleDuration;
     let showAlternatingMessage = hasSecondMessage &&
         messageCycleElapsed >= MESSAGE_SWITCH_INTERVAL_MS;
-    let messageScrollProgress = showAlternatingMessage ?
-        (messageCycleElapsed - MESSAGE_SWITCH_INTERVAL_MS) / messageMarqueeDurationMs : 0;
 
     for(let row = 0; row < 2; row++) {
         let arrival = pids.arrivals().get(row);
@@ -83,8 +73,7 @@ function render(ctx, state, pids) {
         // If its "hide destination etc." option is enabled, always show the
         // message. Otherwise alternate it with the second train.
         if(row == 1 && hasSecondMessage && (secondRowHidden || showAlternatingMessage)) {
-            drawMessageRow(ctx, secondMessageText, rowY, sx, sy, unit,
-                secondRowHidden ? -1 : messageScrollProgress, messageMarqueeDurationMs);
+            drawMessageRow(ctx, secondMessageText, rowY, sx, sy, unit);
             continue;
         }
 
@@ -103,37 +92,9 @@ function render(ctx, state, pids) {
 function dispose(ctx, state, pids) {
 }
 
-function primaryLanguage(value) {
-    if(value == null) {
-        return "";
-    }
-    let text = value.toString();
-    let separator = text.indexOf("|");
-    return (separator < 0 ? text : text.substring(0, separator)).trim();
-}
-
-function formatClock(epochMillis) {
-    let date = new Date(epochMillis);
-    return pad2(date.getHours()) + ":" + pad2(date.getMinutes());
-}
-
-function pad2(value) {
-    return value < 10 ? "0" + value : value.toString();
-}
-
 function numberOrDefault(value, fallback) {
     let number = Number(value);
     return isNaN(number) || number <= 0 ? fallback : number;
-}
-
-function parseColor(value, fallback) {
-    if(value == null) {
-        return fallback;
-    }
-
-    let text = value.toString().replace("#", "").replace("0x", "");
-    let color = parseInt(text, 16);
-    return isNaN(color) ? fallback : color;
 }
 
 function drawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit) {
@@ -157,47 +118,17 @@ function drawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit) {
     }
 }
 
-function drawMessageRow(ctx, message, rowY, sx, sy, unit, scrollProgress, durationMs) {
+function drawMessageRow(ctx, message, rowY, sx, sy, unit) {
     let scale = 1.08 * unit;
-    let durationTicks = durationMs / 50;
-    let text = Text.create("Second message")
+    Text.create("Second message")
         .text(message)
         .fontMC()
         .color(COLOR_RED)
         .pos(7 * sx, rowY + 2 * sy)
         .size((140 * sx) / scale, 9)
         .scale(scale)
-        .leftAlign();
-
-    if(scrollProgress < 0) {
-        text.marquee(durationTicks);
-    } else {
-        text.marquee(durationTicks)
-            .withMarqueeProgress(scrollProgress);
-    }
-
-    text.draw(ctx);
-}
-
-function getMarqueeDurationMs(message, viewportWidth) {
-    let travelDistance = estimateTextWidth(message) + viewportWidth;
-    return Math.max(3000, travelDistance / MARQUEE_SPEED_UNITS_PER_SECOND * 1000);
-}
-
-function estimateTextWidth(message) {
-    let width = 0;
-    for(let i = 0; i < message.length; i++) {
-        width += message.charCodeAt(i) <= 0x7F ? 6 : 9;
-    }
-    return width;
-}
-
-function rectangle(ctx, comment, x, y, width, height, color) {
-    Texture.create(comment)
-        .texture(WHITE_TEXTURE)
-        .color(color)
-        .pos(x, y)
-        .size(width, height)
+        .leftAlign()
+        .scaleXY()
         .draw(ctx);
 }
 

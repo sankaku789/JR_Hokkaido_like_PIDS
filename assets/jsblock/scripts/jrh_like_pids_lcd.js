@@ -3,15 +3,10 @@
  * 1列車につき「列車情報＋停車駅」の2段、合計4段表示。
  */
 
+include(Resources.id("jsblock:scripts/jrh_pids_common.js"));
+
 const DEFAULT_COLOR_NAVY = 0x05051F;
-const COLOR_BLACK = 0x000000;
-const COLOR_WHITE = 0xF4F4FF;
-const COLOR_RED = 0xFF1800;
-const COLOR_GREEN = 0x16FF35;
-const COLOR_ORANGE = 0xFF9D00;
-const WHITE_TEXTURE = "mtr:textures/block/white.png";
 const MESSAGE_SWITCH_INTERVAL_MS = 6000;
-const MARQUEE_SPEED_UNITS_PER_SECOND = 1.5;
 
 function create(ctx, state, pids) {
 }
@@ -70,20 +65,14 @@ function render(ctx, state, pids) {
             let hasSecondMessage = secondMessage != null && secondMessage.trim() != "";
             let currentTimeMs = new Date().getTime();
             let secondMessageText = primaryLanguage(secondMessage);
-            let messageScale = 0.92 * unit;
-            let messageViewportWidth = (w - 20) / messageScale;
-            let messageMarqueeDurationMs = getMarqueeDurationMs(secondMessageText, messageViewportWidth);
-            let messageCycleDuration = MESSAGE_SWITCH_INTERVAL_MS + messageMarqueeDurationMs;
+            let messageCycleDuration = MESSAGE_SWITCH_INTERVAL_MS * 2;
             let messageCycleElapsed = currentTimeMs % messageCycleDuration;
             let showMessage = hasSecondMessage && (
                 pids.isRowHidden(1) || messageCycleElapsed >= MESSAGE_SWITCH_INTERVAL_MS
             );
-            let messageScrollProgress = messageCycleElapsed >= MESSAGE_SWITCH_INTERVAL_MS ?
-                (messageCycleElapsed - MESSAGE_SWITCH_INTERVAL_MS) / messageMarqueeDurationMs : 0;
 
             if(showMessage) {
-                drawMessageRow(ctx, secondMessageText, rowY, rowHeight, w, unit,
-                    pids.isRowHidden(1) ? -1 : messageScrollProgress, messageMarqueeDurationMs);
+                drawMessageRow(ctx, secondMessageText, rowY, rowHeight, w, unit);
                 continue;
             }
         }
@@ -126,58 +115,32 @@ function drawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit) {
     let message = "停車駅: " + getCallingPoints(arrival);
     let scale = 0.78 * unit;
     let viewportWidth = (w - 18) / scale;
-    let durationTicks = getMarqueeDurationMs(message, viewportWidth) / 50;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
-    let text = Text.create("LCD calling points " + set)
+    Text.create("LCD calling points " + set)
         .text(message)
         .fontMC()
         .color(COLOR_ORANGE)
         .pos(6, textY)
         .size(viewportWidth, 9)
         .scale(scale)
-        .leftAlign();
-
-    if(message.length > 26) {
-        text.marquee(durationTicks);
-    }
-
-    text.draw(ctx);
+        .leftAlign()
+        .scaleXY()
+        .draw(ctx);
 }
 
-function drawMessageRow(ctx, message, rowY, rowHeight, w, unit, scrollProgress, durationMs) {
+function drawMessageRow(ctx, message, rowY, rowHeight, w, unit) {
     let scale = 0.92 * unit;
-    let durationTicks = durationMs / 50;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
-    let text = Text.create("LCD second message")
+    Text.create("LCD second message")
         .text(message)
         .fontMC()
         .color(COLOR_RED)
         .pos(6, textY)
         .size((w - 20) / scale, 9)
         .scale(scale)
-        .leftAlign();
-
-    if(scrollProgress < 0) {
-        text.marquee(durationTicks);
-    } else {
-        text.marquee(durationTicks)
-            .withMarqueeProgress(scrollProgress);
-    }
-
-    text.draw(ctx);
-}
-
-function getMarqueeDurationMs(message, viewportWidth) {
-    let travelDistance = estimateTextWidth(message) + viewportWidth;
-    return Math.max(3000, travelDistance / MARQUEE_SPEED_UNITS_PER_SECOND * 1000);
-}
-
-function estimateTextWidth(message) {
-    let width = 0;
-    for(let i = 0; i < message.length; i++) {
-        width += message.charCodeAt(i) <= 0x7F ? 6 : 9;
-    }
-    return width;
+        .leftAlign()
+        .scaleXY()
+        .draw(ctx);
 }
 
 function getCallingPoints(arrival) {
@@ -201,42 +164,6 @@ function getCallingPoints(arrival) {
     }
 
     return names.length == 0 ? primaryLanguage(arrival.destination()) : names.join("・");
-}
-
-function primaryLanguage(value) {
-    if(value == null) {
-        return "";
-    }
-    let text = value.toString();
-    let separator = text.indexOf("|");
-    return (separator < 0 ? text : text.substring(0, separator)).trim();
-}
-
-function formatClock(epochMillis) {
-    let date = new Date(epochMillis);
-    return pad2(date.getHours()) + ":" + pad2(date.getMinutes());
-}
-
-function pad2(value) {
-    return value < 10 ? "0" + value : value.toString();
-}
-
-function parseColor(value, fallback) {
-    if(value == null) {
-        return fallback;
-    }
-    let text = value.toString().replace("#", "").replace("0x", "");
-    let color = parseInt(text, 16);
-    return isNaN(color) ? fallback : color;
-}
-
-function rectangle(ctx, comment, x, y, width, height, color) {
-    Texture.create(comment)
-        .texture(WHITE_TEXTURE)
-        .color(color)
-        .pos(x, y)
-        .size(width, height)
-        .draw(ctx);
 }
 
 function drawText(ctx, comment, value, color, x, y, width, height, scale, align, fit) {
