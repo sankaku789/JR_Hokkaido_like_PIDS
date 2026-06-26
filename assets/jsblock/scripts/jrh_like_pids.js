@@ -107,22 +107,21 @@ function drawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit) {
         7 * sx, rowY + 2 * sy, 49 * sx, 9, 1.12 * unit, "left", true);
 
     drawText(ctx, "Departure " + row, departure, COLOR_GREEN,
-        65 * sx, rowY + 1 * sy, 27 * sx, 9, 1.32 * unit, "left", false);
+        65 * sx, rowY + 1 * sy, 27 * sx, 9, 1.32 * unit, "left", "stretch");
 
     drawText(ctx, "Destination " + row, destination, COLOR_GREEN,
         96 * sx, rowY + 2 * sy, 48 * sx, 9, 1.12 * unit, "left", true);
 
     if(!pids.isPlatformNumberHidden()) {
         drawText(ctx, "Platform " + row, platform, COLOR_ORANGE,
-            153 * sx, rowY + 1 * sy, 8 * sx, 9, 1.32 * unit, "right", false);
+            153 * sx, rowY + 1.3 * sy, 8 * sx, 9, 1.32 * unit, "right", "stretch");
     }
 }
 
 function drawMessageRow(ctx, message, rowY, sx, sy, unit) {
     let scale = 1.08 * unit;
-    Text.create("Second message")
+    createPidsText("Second message")
         .text(message)
-        .fontMC()
         .color(COLOR_GREEN)
         .pos(7 * sx, rowY + 2 * sy)
         .size((140 * sx) / scale, 9)
@@ -133,9 +132,8 @@ function drawMessageRow(ctx, message, rowY, sx, sy, unit) {
 }
 
 function drawText(ctx, comment, value, color, x, y, width, height, scale, align, fit) {
-    let text = Text.create(comment)
+    let text = createPidsText(comment)
         .text(value == null ? "" : value.toString())
-        .fontMC()
         .color(color)
         .pos(x, y)
         .size(width / scale, height)

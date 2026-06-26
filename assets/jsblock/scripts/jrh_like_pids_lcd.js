@@ -99,7 +99,7 @@ function drawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit) {
         7 * sx, textY, 49 * sx, 9, 1.12 * unit, "left", true);
 
     drawText(ctx, "LCD departure " + set, departure, COLOR_GREEN,
-        65 * sx, textY - 0.5, 27 * sx, 9, 1.32 * unit, "left", false);
+        65 * sx, textY - 0.5, 27 * sx, 9, 1.32 * unit, "left", "stretch");
 
     let destinationWidth = pids.isPlatformNumberHidden() ? 57 * sx : 48 * sx;
     drawText(ctx, "LCD destination " + set, destination, COLOR_GREEN,
@@ -107,7 +107,7 @@ function drawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit) {
 
     if(!pids.isPlatformNumberHidden()) {
         drawText(ctx, "LCD platform " + set, primaryLanguage(arrival.platformName()), COLOR_ORANGE,
-            153 * sx, textY - 0.5, 8 * sx, 9, 1.32 * unit, "right", false);
+            153 * sx, textY - 0.2, 8 * sx, 9, 1.32 * unit, "right", "stretch");
     }
 }
 
@@ -116,9 +116,8 @@ function drawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit) {
     let scale = 0.78 * unit;
     let viewportWidth = (w - 18) / scale;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
-    Text.create("LCD calling points " + set)
+    createPidsText("LCD calling points " + set)
         .text(message)
-        .fontMC()
         .color(COLOR_ORANGE)
         .pos(6, textY)
         .size(viewportWidth, 9)
@@ -131,9 +130,8 @@ function drawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit) {
 function drawMessageRow(ctx, message, rowY, rowHeight, w, unit) {
     let scale = 0.92 * unit;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
-    Text.create("LCD second message")
+    createPidsText("LCD second message")
         .text(message)
-        .fontMC()
         .color(COLOR_GREEN)
         .pos(6, textY)
         .size((w - 20) / scale, 9)
@@ -176,9 +174,8 @@ function getCallingPointsMessage(arrival) {
 }
 
 function drawText(ctx, comment, value, color, x, y, width, height, scale, align, fit) {
-    let text = Text.create(comment)
+    let text = createPidsText(comment)
         .text(value == null ? "" : value.toString())
-        .fontMC()
         .color(color)
         .pos(x, y)
         .size(width / scale, height)
@@ -192,7 +189,9 @@ function drawText(ctx, comment, value, color, x, y, width, height, scale, align,
         text.leftAlign();
     }
 
-    if(fit) {
+    if(fit == "stretch") {
+        text.stretchXY();
+    } else if(fit) {
         text.scaleXY();
     }
 
