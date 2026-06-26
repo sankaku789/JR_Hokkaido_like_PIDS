@@ -8,16 +8,10 @@ const COLOR_RED = 0xFF1800;
 const COLOR_GREEN = 0x16FF35;
 const COLOR_ORANGE = 0xFF9D00;
 const WHITE_TEXTURE = "mtr:textures/block/white.png";
-const PIDS_FONT = "minecraft:uniform";
+const PIDS_FONT = "jsblock:unifont";
 
 function createPidsText(comment) {
-    let text = Text.create(comment);
-    if(typeof text.font == "function") {
-        text.font(PIDS_FONT);
-    } else {
-        text.fontMC();
-    }
-    return text;
+    return Text.create(comment).font(PIDS_FONT);
 }
 
 function primaryLanguage(value) {

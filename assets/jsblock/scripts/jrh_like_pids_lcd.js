@@ -99,7 +99,7 @@ function drawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit) {
         7 * sx, textY, 49 * sx, 9, 1.12 * unit, "left", true);
 
     drawText(ctx, "LCD departure " + set, departure, COLOR_GREEN,
-        65 * sx, textY - 0.5, 27 * sx, 9, 1.32 * unit, "left", false);
+        65 * sx, textY - 0.5, 27 * sx, 9, 1.32 * unit, "left", "stretch");
 
     let destinationWidth = pids.isPlatformNumberHidden() ? 57 * sx : 48 * sx;
     drawText(ctx, "LCD destination " + set, destination, COLOR_GREEN,
@@ -107,7 +107,7 @@ function drawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit) {
 
     if(!pids.isPlatformNumberHidden()) {
         drawText(ctx, "LCD platform " + set, primaryLanguage(arrival.platformName()), COLOR_ORANGE,
-            153 * sx, textY - 0.5, 8 * sx, 9, 1.32 * unit, "right", false);
+            153 * sx, textY - 0.2, 8 * sx, 9, 1.32 * unit, "right", "stretch");
     }
 }
 

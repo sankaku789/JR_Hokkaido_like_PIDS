@@ -107,14 +107,14 @@ function drawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit) {
         7 * sx, rowY + 2 * sy, 49 * sx, 9, 1.12 * unit, "left", true);
 
     drawText(ctx, "Departure " + row, departure, COLOR_GREEN,
-        65 * sx, rowY + 1 * sy, 27 * sx, 9, 1.32 * unit, "left", false);
+        65 * sx, rowY + 1 * sy, 27 * sx, 9, 1.32 * unit, "left", "stretch");
 
     drawText(ctx, "Destination " + row, destination, COLOR_GREEN,
         96 * sx, rowY + 2 * sy, 48 * sx, 9, 1.12 * unit, "left", true);
 
     if(!pids.isPlatformNumberHidden()) {
         drawText(ctx, "Platform " + row, platform, COLOR_ORANGE,
-            153 * sx, rowY + 1 * sy, 8 * sx, 9, 1.32 * unit, "right", false);
+            153 * sx, rowY + 1.3 * sy, 8 * sx, 9, 1.32 * unit, "right", "stretch");
     }
 }
 
