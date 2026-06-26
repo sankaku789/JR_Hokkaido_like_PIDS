@@ -122,9 +122,8 @@ function drawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit) {
     let scale = 0.78 * unit;
     let viewportWidth = (w - 18) / scale;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
-    Text.create("LCD calling points " + set)
+    createPidsText("LCD calling points " + set)
         .text(message)
-        .fontMC()
         .color(COLOR_GREEN)
         .pos(6, textY)
         .size(viewportWidth, 9)
@@ -137,9 +136,8 @@ function drawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit) {
 function drawMessageRow(ctx, message, rowY, rowHeight, w, unit) {
     let scale = 0.92 * unit;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
-    Text.create("LCD second message")
+    createPidsText("LCD second message")
         .text(message)
-        .fontMC()
         .color(COLOR_GREEN)
         .pos(6, textY)
         .size((w - 20) / scale, 9)
@@ -182,9 +180,8 @@ function getCallingPointsMessage(arrival) {
 }
 
 function drawText(ctx, comment, value, color, x, y, width, height, scale, align, fit) {
-    let text = Text.create(comment)
+    let text = createPidsText(comment)
         .text(value == null ? "" : value.toString())
-        .fontMC()
         .color(color)
         .pos(x, y)
         .size(width / scale, height)

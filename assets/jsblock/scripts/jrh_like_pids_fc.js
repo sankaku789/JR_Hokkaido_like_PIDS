@@ -127,9 +127,8 @@ function drawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit) {
 
 function drawMessageRow(ctx, message, rowY, sx, sy, unit) {
     let scale = 1.08 * unit;
-    Text.create("Second message")
+    createPidsText("Second message")
         .text(message)
-        .fontMC()
         .color(COLOR_MESSAGE_YELLOW)
         .pos(7 * sx, rowY + 2 * sy)
         .size((140 * sx) / scale, 9)
@@ -140,9 +139,8 @@ function drawMessageRow(ctx, message, rowY, sx, sy, unit) {
 }
 
 function drawText(ctx, comment, value, color, x, y, width, height, scale, align, fit) {
-    let text = Text.create(comment)
+    let text = createPidsText(comment)
         .text(value == null ? "" : value.toString())
-        .fontMC()
         .color(color)
         .pos(x, y)
         .size(width / scale, height)
