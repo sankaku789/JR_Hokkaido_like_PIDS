@@ -189,7 +189,9 @@ function drawText(ctx, comment, value, color, x, y, width, height, scale, align,
         text.leftAlign();
     }
 
-    if(fit) {
+    if(fit == "stretch") {
+        text.stretchXY();
+    } else if(fit) {
         text.scaleXY();
     }
 
