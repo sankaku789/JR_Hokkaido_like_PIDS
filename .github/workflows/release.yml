@@ -1,0 +1,32 @@
+name: Release Resource Pack
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create zip
+        run: |
+          mkdir -p dist
+          cd resourcepack
+          zip -r "../dist/${{ github.event.repository.name }}-${{ github.ref_name }}.zip" pack.mcmeta pack.png assets
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            "dist/${{ github.event.repository.name }}-${{ github.ref_name }}.zip" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
