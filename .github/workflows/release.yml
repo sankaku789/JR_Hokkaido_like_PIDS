@@ -19,8 +19,7 @@ jobs:
       - name: Create zip
         run: |
           mkdir -p dist
-          cd resourcepack
-          zip -r "../dist/${{ github.event.repository.name }}-${{ github.ref_name }}.zip" pack.mcmeta pack.png assets
+          zip -r "dist/${{ github.event.repository.name }}-${{ github.ref_name }}.zip" pack.mcmeta pack.png assets
 
       - name: Create GitHub Release
         run: |
