@@ -1,157 +1,32 @@
-/*
- * JR北海道の駅発車標をイメージした JCM v2 Scripted PIDS preset.
- * MTR 4 / Minecraft 1.20.1 向け。
- */
+/* JR北海道風ホーム発車標（通常色）。 */
 
 include(Resources.id("jsblock:scripts/jrh_pids_common.js"));
+include(Resources.id("jsblock:scripts/jrh_pids_home_renderer.js"));
 
-const DEFAULT_COLOR_NAVY = 0x05051F;
-const MESSAGE_SWITCH_INTERVAL_MS = 6000;
+const jrhHomeTheme = {
+    defaultBackground: 0x05051F,
+    showRouteColor: false,
+    header: 0xF4F4FF,
+    noTrain: 0x16FF35,
+    warning: 0xFF1800,
+    route: 0x16FF35,
+    departure: 0x16FF35,
+    destination: 0x16FF35,
+    platform: 0xFF9D00,
+    message: 0x16FF35,
+    stops: 0xFF9D00,
+    outOfService: 0x16FF35
+};
 
+/** 通常色ホーム発車標の描画状態を初期化する（初期化処理なし）。 */
 function create(ctx, state, pids) {
 }
 
+/** 通常色テーマでホーム発車標を描画する。 */
 function render(ctx, state, pids) {
-    let w = pids.width;
-    let h = pids.height;
-    let sx = w / 160.0;
-    let sy = h / 48.0;
-    let unit = Math.min(sx, sy);
-    const HEADER_HEIGHT = 14;
-    const ROW_HEIGHT = 13;
-    const ROW_GAP = 4;
-    let backgroundColor = parseColor(SCRIPT_INPUT.backgroundColor, DEFAULT_COLOR_NAVY);
-    let arrivalWarningSeconds = numberOrDefault(SCRIPT_INPUT.arrivalWarningSeconds, 25);
-    let warningBlinkIntervalMs = numberOrDefault(SCRIPT_INPUT.arrivalWarningBlinkIntervalMs, 500);
-    let currentTimeMs = new Date().getTime();
-    let firstArrival = pids.arrivals().get(0);
-    let arrivalWarningActive = !pids.isRowHidden(0) &&
-        firstArrival != null &&
-        firstArrival.arrivalTime() > currentTimeMs &&
-        firstArrival.arrivalTime() - currentTimeMs <= arrivalWarningSeconds * 1000;
-    let warningBlinkVisible = Math.floor(currentTimeMs / warningBlinkIntervalMs) % 2 == 0;
-
-    // Display body and two equally-sized departure rows.
-    rectangle(ctx, "Navy background", 0, 0, w, h, backgroundColor);
-    rectangle(ctx, "Departure row 1", 5 * sx, HEADER_HEIGHT * sy, 150 * sx, ROW_HEIGHT * sy, COLOR_BLACK);
-    rectangle(ctx, "Departure row 2", 5 * sx, (HEADER_HEIGHT + ROW_HEIGHT + ROW_GAP) * sy, 150 * sx, ROW_HEIGHT * sy, COLOR_BLACK);
-
-    // The first message field in the PIDS configuration is used as the header.
-    let headerMessage = pids.getCustomMessage(0);
-    if(headerMessage == null || headerMessage.trim() == "") {
-        headerMessage = SCRIPT_INPUT.directionText;
-    }
-
-    drawText(ctx, "Header message", primaryLanguage(headerMessage), COLOR_WHITE,
-        7 * sx, 3 * sy, 146 * sx, 9, 1.05 * unit, "left", true);
-
-    let secondMessage = pids.getCustomMessage(1);
-    let hasSecondMessage = secondMessage != null && secondMessage.trim() != "";
-    let secondRowHidden = pids.isRowHidden(1);
-    let secondMessageText = primaryLanguage(secondMessage);
-    let messageCycleDuration = MESSAGE_SWITCH_INTERVAL_MS * 2;
-    let messageCycleElapsed = currentTimeMs % messageCycleDuration;
-    let showAlternatingMessage = hasSecondMessage &&
-        messageCycleElapsed >= MESSAGE_SWITCH_INTERVAL_MS;
-
-    for(let row = 0; row < 2; row++) {
-        let arrival = pids.arrivals().get(row);
-        let rowY = (HEADER_HEIGHT + row * (ROW_HEIGHT + ROW_GAP)) * sy;
-
-        // Arrival warning always takes priority over the second train and
-        // the configured second message. During the invisible blink phase,
-        // row 2 deliberately remains blank.
-        if(row == 1 && arrivalWarningActive) {
-            if(warningBlinkVisible) {
-                drawText(ctx, "Arrival warning", SCRIPT_INPUT.arrivalWarningText, COLOR_RED,
-                    7 * sx, rowY + 2 * sy, 146 * sx, 9, 1.08 * unit, "left", true);
-            }
-            continue;
-        }
-
-        // The second PIDS message controls the second display row.
-        // If its "hide destination etc." option is enabled, always show the
-        // message. Otherwise alternate it with the second train.
-        if(row == 1 && hasSecondMessage && (secondRowHidden || showAlternatingMessage)) {
-            drawMessageRow(ctx, secondMessageText, rowY, sx, sy, unit);
-            continue;
-        }
-
-        if(arrival == null) {
-            if(row == 0) {
-                drawText(ctx, "No train", SCRIPT_INPUT.noTrainText, COLOR_GREEN,
-                    7 * sx, rowY + 2 * sy, 146 * sx, 9, 1.08 * unit, "left", true);
-            }
-            continue;
-        }
-
-        drawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit);
-    }
+    jrhHomeRender(ctx, state, pids, jrhHomeTheme);
 }
 
+/** 通常色ホーム発車標の描画資源を解放する（解放処理なし）。 */
 function dispose(ctx, state, pids) {
-}
-
-function numberOrDefault(value, fallback) {
-    let number = Number(value);
-    return isNaN(number) || number <= 0 ? fallback : number;
-}
-
-function drawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit) {
-    let routeNumber = primaryLanguage(arrival.routeNumber());
-    let departure = formatClock(arrival.departureTime());
-    let destination = primaryLanguage(arrival.destination());
-    let platform = primaryLanguage(arrival.platformName());
-
-    drawText(ctx, "Route number " + row, routeNumber, COLOR_GREEN,
-        7 * sx, rowY + 2 * sy, 49 * sx, 9, 1.12 * unit, "left", true);
-
-    drawText(ctx, "Departure " + row, departure, COLOR_GREEN,
-        65 * sx, rowY + 1 * sy, 27 * sx, 9, 1.32 * unit, "left", "stretch");
-
-    drawText(ctx, "Destination " + row, destination, COLOR_GREEN,
-        96 * sx, rowY + 2 * sy, 48 * sx, 9, 1.12 * unit, "left", true);
-
-    if(!pids.isPlatformNumberHidden()) {
-        drawText(ctx, "Platform " + row, platform, COLOR_ORANGE,
-            153 * sx, rowY + 1.3 * sy, 8 * sx, 9, 1.32 * unit, "right", "stretch");
-    }
-}
-
-function drawMessageRow(ctx, message, rowY, sx, sy, unit) {
-    let scale = 1.08 * unit;
-    createPidsText("Second message")
-        .text(message)
-        .color(COLOR_GREEN)
-        .pos(7 * sx, rowY + 2 * sy)
-        .size((140 * sx) / scale, 9)
-        .scale(scale)
-        .leftAlign()
-        .scaleXY()
-        .draw(ctx);
-}
-
-function drawText(ctx, comment, value, color, x, y, width, height, scale, align, fit) {
-    let text = createPidsText(comment)
-        .text(value == null ? "" : value.toString())
-        .color(color)
-        .pos(x, y)
-        .size(width / scale, height)
-        .scale(scale);
-
-    if(align == "center") {
-        text.centerAlign();
-    } else if(align == "right") {
-        text.rightAlign();
-    } else {
-        text.leftAlign();
-    }
-
-    if(fit == "stretch") {
-        text.stretchXY();
-    } else if(fit) {
-        text.scaleXY();
-    }
-
-    text.draw(ctx);
 }
