@@ -74,10 +74,14 @@ function jrhHomeRender(ctx, state, pids, theme) {
 
 /** ホーム発車標の列車情報1行を描画する。 */
 function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme) {
-    // 当駅止まりは「回送」だけを描画し、路線色背景も出さない。
+    // 当駅止まりは「回送」と番線だけを描画し、路線色背景は出さない。
     if(arrival.terminating()) {
         drawText(ctx, "Out of service " + row, "回送", theme.outOfService,
             7 * sx, rowY + 2 * sy, 49 * sx, 9, 1.12 * unit, "left", true);
+        if(!pids.isPlatformNumberHidden()) {
+            drawText(ctx, "Platform " + row, primaryLanguage(arrival.platformName()), theme.platform,
+                153 * sx, rowY + 1.3 * sy, 8 * sx, 9, 1.32 * unit, "right", "stretch");
+        }
         return;
     }
 
