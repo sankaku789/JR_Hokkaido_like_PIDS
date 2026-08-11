@@ -1,6 +1,6 @@
 # JR Hokkaido Style PIDS
 
-[日本語](README.md) | English
+[日本語](README.md) | English | [简体中文](README.cn.md)
 
 This resource pack adds PIDS presets inspired by JR Hokkaido departure boards.
 
@@ -36,16 +36,17 @@ After changing this resource pack or its `scriptInput` values, reload resources 
 
 ## Customization
 
-Edit `scriptInput` in `assets/jsblock/joban_custom_resources.json` to customize the presets.
+Edit `scriptInput` for each preset in `assets/jsblock/joban_custom_resources.json` to customize the following options:
 
-Available options:
-
-- `directionText`: Header text shown when the PIDS message field is empty
-- `noTrainText`: Text shown when no train is available
-- `backgroundColor`: Background color as a hexadecimal RGB value
-- `arrivalWarningSeconds`: Seconds before arrival when the arrival warning starts
-- `arrivalWarningBlinkIntervalMs`: Arrival warning blink interval in milliseconds
-- `arrivalWarningText`: Arrival warning message
+- `backgroundColor`: Background color as a hexadecimal RGB value (three-color: `05051F`; full-color: `1D2053`)
+- `arrivalWarningSeconds`: Seconds before the platform-display arrival warning starts (default: `25`; unused by the LCD renderer)
+- `arrivalWarningBlinkIntervalMs`: Platform-display arrival warning blink interval in milliseconds (default: `700`; unused by the LCD renderer)
+- `languageSwitchIntervalMs`: Interval for switching `|`-separated languages in milliseconds (default: `5000`)
+- `messageMarqueeSecondsPerCharacter`: Seconds per approximate character width used to control long-message scrolling speed (default: `0.33`; smaller values scroll faster)
+- `arrivalWarningText`: Platform-display arrival warning message (default: `列車がまいります。`; unused by the LCD renderer)
+- `outOfServiceText`: Out-of-service train text; supports `|`-separated languages (default: `回送|Out Of Service`)
+- `directionText`: Header text shown when the PIDS message field is empty (default: `発車ご案内 Train Infomation`)
+- `noTrainText`: Text shown when no train is available (default: `調整中`)
 
 ## License
 
