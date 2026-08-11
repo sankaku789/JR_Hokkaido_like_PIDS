@@ -10,6 +10,9 @@ const COLOR_ORANGE = 0xFF9D00;
 const WHITE_TEXTURE = "mtr:textures/block/white.png";
 const PIDS_FONT = "jsblock:unifont";
 const LANGUAGE_SWITCH_INTERVAL_MS = 5000;
+const MESSAGE_SCROLL_MIN_CHARS = 28;
+const MESSAGE_MARQUEE_VIEWPORT_CHARS = 15;
+const MESSAGE_MARQUEE_SECONDS_PER_CHARACTER = 0.33;
 
 /** PIDS用フォントを設定したテキストオブジェクトを作成する。 */
 function createPidsText(comment) {
@@ -46,6 +49,15 @@ function currentDestination(arrival, languageIndex) {
         }
     }
     return currentLanguage(destination, languageIndex);
+}
+
+/** 文字数から一定速度に近いメッセージスクロール時間を算出する。 */
+function getMessageMarqueeDuration(message) {
+    let scrollDistanceInCharacters = MESSAGE_MARQUEE_VIEWPORT_CHARS + Array.from(message).length;
+    let secondsPerCharacter = numberOrDefault(
+        SCRIPT_INPUT.messageMarqueeSecondsPerCharacter,
+        MESSAGE_MARQUEE_SECONDS_PER_CHARACTER);
+    return scrollDistanceInCharacters * secondsPerCharacter;
 }
 
 /** 到着情報をコピーし、発車時刻順のJavaScript配列として返す。 */

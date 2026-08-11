@@ -43,7 +43,12 @@ function jrhHomeRender(ctx, state, pids, theme) {
     let hasSecondMessage = secondMessage != null && secondMessage.trim() != "";
     let secondRowHidden = pids.isRowHidden(1);
     let secondMessageText = currentLanguage(secondMessage, languageIndex);
-    let messageCycleElapsed = currentTimeMs % (jrhHomeMessageSwitchIntervalMs * 2);
+    let secondMessageScrolls = Array.from(secondMessageText).length >= MESSAGE_SCROLL_MIN_CHARS;
+    let secondMessageDurationMs = secondMessageScrolls
+        ? getMessageMarqueeDuration(secondMessageText) * 1000
+        : jrhHomeMessageSwitchIntervalMs;
+    let messageCycleElapsed = currentTimeMs %
+        (jrhHomeMessageSwitchIntervalMs + secondMessageDurationMs);
     let showAlternatingMessage = hasSecondMessage &&
         messageCycleElapsed >= jrhHomeMessageSwitchIntervalMs;
 
@@ -61,7 +66,10 @@ function jrhHomeRender(ctx, state, pids, theme) {
         }
 
         if(row == 1 && hasSecondMessage && (secondRowHidden || showAlternatingMessage)) {
-            jrhHomeDrawMessageRow(ctx, secondMessageText, rowY, sx, sy, unit, theme);
+            let marqueeProgress = !secondRowHidden && secondMessageScrolls
+                ? (messageCycleElapsed - jrhHomeMessageSwitchIntervalMs) / secondMessageDurationMs
+                : null;
+            jrhHomeDrawMessageRow(ctx, secondMessageText, rowY, sx, sy, unit, theme, marqueeProgress);
             continue;
         }
 
@@ -117,15 +125,20 @@ function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, them
 }
 
 /** ホーム発車標の追加メッセージ行を描画する。 */
-function jrhHomeDrawMessageRow(ctx, message, rowY, sx, sy, unit, theme) {
+function jrhHomeDrawMessageRow(ctx, message, rowY, sx, sy, unit, theme, marqueeProgress) {
     let scale = 1.08 * unit;
-    createPidsText("Second message")
+    let text = createPidsText("Second message")
         .text(message)
         .color(theme.message)
         .pos(7 * sx, rowY + 2 * sy)
         .size((140 * sx) / scale, 9)
         .scale(scale)
-        .leftAlign()
-        .scaleXY()
-        .draw(ctx);
+        .leftAlign();
+    if(Array.from(message).length >= MESSAGE_SCROLL_MIN_CHARS) {
+        text.marquee(getMessageMarqueeDuration(message));
+        if(marqueeProgress != null) {
+            text.withMarqueeProgress(marqueeProgress);
+        }
+    }
+    text.draw(ctx);
 }

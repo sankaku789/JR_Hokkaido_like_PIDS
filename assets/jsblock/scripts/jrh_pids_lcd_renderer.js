@@ -59,13 +59,22 @@ function jrhLcdRender(ctx, state, pids, theme) {
             let secondMessage = pids.getCustomMessage(1);
             let hasSecondMessage = secondMessage != null && secondMessage.trim() != "";
             let secondMessageText = currentLanguage(secondMessage, languageIndex);
-            let messageCycleElapsed = currentTimeMs % (jrhLcdMessageSwitchIntervalMs * 2);
+            let secondRowHidden = pids.isRowHidden(1);
+            let secondMessageScrolls = Array.from(secondMessageText).length >= MESSAGE_SCROLL_MIN_CHARS;
+            let secondMessageDurationMs = secondMessageScrolls
+                ? getMessageMarqueeDuration(secondMessageText) * 1000
+                : jrhLcdMessageSwitchIntervalMs;
+            let messageCycleElapsed = currentTimeMs %
+                (jrhLcdMessageSwitchIntervalMs + secondMessageDurationMs);
             let showMessage = hasSecondMessage && (
-                pids.isRowHidden(1) || messageCycleElapsed >= jrhLcdMessageSwitchIntervalMs
+                secondRowHidden || messageCycleElapsed >= jrhLcdMessageSwitchIntervalMs
             );
 
             if(showMessage) {
-                jrhLcdDrawMessageRow(ctx, secondMessageText, rowY, rowHeight, w, unit, theme);
+                let marqueeProgress = !secondRowHidden && secondMessageScrolls
+                    ? (messageCycleElapsed - jrhLcdMessageSwitchIntervalMs) / secondMessageDurationMs
+                    : null;
+                jrhLcdDrawMessageRow(ctx, secondMessageText, rowY, rowHeight, w, unit, theme, marqueeProgress);
                 continue;
             }
         }
@@ -128,18 +137,23 @@ function jrhLcdDrawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit, theme, 
 }
 
 /** LCD発車標の追加メッセージ行を描画する。 */
-function jrhLcdDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, theme) {
+function jrhLcdDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, theme, marqueeProgress) {
     let scale = 0.92 * unit;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
-    createPidsText("LCD second message")
+    let text = createPidsText("LCD second message")
         .text(message)
         .color(theme.message)
         .pos(6, textY)
         .size((w - 20) / scale, 9)
         .scale(scale)
-        .leftAlign()
-        .scaleXY()
-        .draw(ctx);
+        .leftAlign();
+    if(Array.from(message).length >= MESSAGE_SCROLL_MIN_CHARS) {
+        text.marquee(getMessageMarqueeDuration(message));
+        if(marqueeProgress != null) {
+            text.withMarqueeProgress(marqueeProgress);
+        }
+    }
+    text.draw(ctx);
 }
 
 /** 列車の次停車駅から案内メッセージを組み立てる。 */
