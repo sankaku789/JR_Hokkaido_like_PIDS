@@ -1,6 +1,6 @@
 /* JR北海道風鉄路願景LCDの共通renderer。 */
 
-const jrhLcdMessageSwitchIntervalMs = 6000;
+const jrhLcdMessageSwitchIntervalMs = 15000;
 
 /** テーマに従ってLCD発車標全体を描画する。 */
 function jrhLcdRender(ctx, state, pids, theme) {

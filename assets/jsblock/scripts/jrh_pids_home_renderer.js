@@ -1,6 +1,6 @@
 /* JR北海道風ホーム発車標の共通renderer。 */
 
-const jrhHomeMessageSwitchIntervalMs = 6000;
+const jrhHomeMessageSwitchIntervalMs = 15000;
 
 /** テーマに従ってホーム発車標全体を描画する。 */
 function jrhHomeRender(ctx, state, pids, theme) {
