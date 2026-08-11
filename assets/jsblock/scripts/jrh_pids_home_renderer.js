@@ -16,6 +16,11 @@ function jrhHomeRender(ctx, state, pids, theme) {
     let arrivalWarningSeconds = numberOrDefault(SCRIPT_INPUT.arrivalWarningSeconds, 25);
     let warningBlinkIntervalMs = numberOrDefault(SCRIPT_INPUT.arrivalWarningBlinkIntervalMs, 500);
     let currentTimeMs = new Date().getTime();
+    let languageSwitchIntervalMs = numberOrDefault(
+        SCRIPT_INPUT.languageSwitchIntervalMs, LANGUAGE_SWITCH_INTERVAL_MS);
+    let languageIndex = pids.isRowHidden(1)
+        ? 0 : Math.floor(currentTimeMs / languageSwitchIntervalMs);
+    let displayArrivals = getArrivalsByDepartureTime(pids, false);
     let firstArrival = pids.arrivals().get(0);
     let arrivalWarningActive = !pids.isRowHidden(0) &&
         firstArrival != null &&
@@ -31,19 +36,19 @@ function jrhHomeRender(ctx, state, pids, theme) {
     if(headerMessage == null || headerMessage.trim() == "") {
         headerMessage = SCRIPT_INPUT.directionText;
     }
-    drawText(ctx, "Header message", primaryLanguage(headerMessage), theme.header,
+    drawText(ctx, "Header message", currentLanguage(headerMessage, languageIndex), theme.header,
         7 * sx, 3 * sy, 146 * sx, 9, 1.05 * unit, "left", true);
 
     let secondMessage = pids.getCustomMessage(1);
     let hasSecondMessage = secondMessage != null && secondMessage.trim() != "";
     let secondRowHidden = pids.isRowHidden(1);
-    let secondMessageText = primaryLanguage(secondMessage);
+    let secondMessageText = currentLanguage(secondMessage, languageIndex);
     let messageCycleElapsed = currentTimeMs % (jrhHomeMessageSwitchIntervalMs * 2);
     let showAlternatingMessage = hasSecondMessage &&
         messageCycleElapsed >= jrhHomeMessageSwitchIntervalMs;
 
     for(let row = 0; row < 2; row++) {
-        let arrival = pids.arrivals().get(row);
+        let arrival = row < displayArrivals.length ? displayArrivals[row] : null;
         let rowY = (HEADER_HEIGHT + row * (ROW_HEIGHT + ROW_GAP)) * sy;
 
         // 到着警告を常に2行目より優先し、点滅の非表示時は空欄にする。
@@ -68,27 +73,30 @@ function jrhHomeRender(ctx, state, pids, theme) {
             continue;
         }
 
-        jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme);
+        jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme, languageIndex);
     }
 }
 
 /** ホーム発車標の列車情報1行を描画する。 */
-function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme) {
+function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme, languageIndex) {
     // 当駅止まりは「回送」と番線だけを描画し、路線色背景は出さない。
     if(arrival.terminating()) {
-        drawText(ctx, "Out of service " + row, "回送", theme.outOfService,
+        let outOfServiceText = SCRIPT_INPUT.outOfServiceText == null
+            ? "回送|Out Of Service" : SCRIPT_INPUT.outOfServiceText;
+        drawText(ctx, "Out of service " + row,
+            currentLanguage(outOfServiceText, languageIndex), theme.outOfService,
             7 * sx, rowY + 2 * sy, 49 * sx, 9, 1.12 * unit, "left", true);
         if(!pids.isPlatformNumberHidden()) {
-            drawText(ctx, "Platform " + row, primaryLanguage(arrival.platformName()), theme.platform,
+            drawText(ctx, "Platform " + row, currentLanguage(arrival.platformName(), languageIndex), theme.platform,
                 153 * sx, rowY + 1.3 * sy, 8 * sx, 9, 1.32 * unit, "right", "stretch");
         }
         return;
     }
 
-    let routeNumber = primaryLanguage(arrival.routeNumber());
+    let routeNumber = currentLanguage(arrival.routeNumber(), languageIndex);
     let departure = formatClock(arrival.departureTime());
-    let destination = primaryLanguage(arrival.destination());
-    let platform = primaryLanguage(arrival.platformName());
+    let destination = currentDestination(arrival, languageIndex);
+    let platform = currentLanguage(arrival.platformName(), languageIndex);
 
     if(theme.showRouteColor) {
         rectangle(ctx, "Route color " + row,

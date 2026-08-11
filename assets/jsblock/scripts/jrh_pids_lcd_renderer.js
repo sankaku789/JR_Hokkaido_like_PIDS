@@ -14,6 +14,11 @@ function jrhLcdRender(ctx, state, pids, theme) {
     let rowsTop = HEADER_HEIGHT + OUTER_PADDING;
     let rowHeight = (h - rowsTop - OUTER_PADDING - ROW_GAP * (ROW_COUNT - 1)) / ROW_COUNT;
     let unit = Math.min(w / 160.0, h / 72.0);
+    let currentTimeMs = new Date().getTime();
+    let languageSwitchIntervalMs = numberOrDefault(
+        SCRIPT_INPUT.languageSwitchIntervalMs, LANGUAGE_SWITCH_INTERVAL_MS);
+    let languageIndex = pids.isRowHidden(1)
+        ? 0 : Math.floor(currentTimeMs / languageSwitchIntervalMs);
 
     rectangle(ctx, "LCD background", 0, 0, w, h, backgroundColor);
 
@@ -21,7 +26,7 @@ function jrhLcdRender(ctx, state, pids, theme) {
     if(headerMessage == null || headerMessage.trim() == "") {
         headerMessage = SCRIPT_INPUT.directionText;
     }
-    drawText(ctx, "LCD header message", primaryLanguage(headerMessage), theme.header,
+    drawText(ctx, "LCD header message", currentLanguage(headerMessage, languageIndex), theme.header,
         5, 1.5, w - 10, 9, 0.9 * unit, "left", true);
 
     for(let row = 0; row < ROW_COUNT; row++) {
@@ -40,8 +45,8 @@ function jrhLcdRender(ctx, state, pids, theme) {
         drawText(ctx, "LCD no train", SCRIPT_INPUT.noTrainText, theme.noTrain,
             6, firstTrainRowY + 1, w - 12, 9, 0.92 * unit, "left", true);
     } else {
-        jrhLcdDrawArrivalRow(ctx, pids, firstArrival, 0, firstTrainRowY, rowHeight, w, unit, theme);
-        jrhLcdDrawStopsRow(ctx, firstArrival, 0, firstStopsRowY, rowHeight, w, unit, theme);
+        jrhLcdDrawArrivalRow(ctx, pids, firstArrival, 0, firstTrainRowY, rowHeight, w, unit, theme, languageIndex);
+        jrhLcdDrawStopsRow(ctx, firstArrival, 0, firstStopsRowY, rowHeight, w, unit, theme, 0);
     }
 
     for(let trainIndex = 1; trainIndex < 3; trainIndex++) {
@@ -53,8 +58,7 @@ function jrhLcdRender(ctx, state, pids, theme) {
         if(trainIndex == 2) {
             let secondMessage = pids.getCustomMessage(1);
             let hasSecondMessage = secondMessage != null && secondMessage.trim() != "";
-            let currentTimeMs = new Date().getTime();
-            let secondMessageText = primaryLanguage(secondMessage);
+            let secondMessageText = currentLanguage(secondMessage, languageIndex);
             let messageCycleElapsed = currentTimeMs % (jrhLcdMessageSwitchIntervalMs * 2);
             let showMessage = hasSecondMessage && (
                 pids.isRowHidden(1) || messageCycleElapsed >= jrhLcdMessageSwitchIntervalMs
@@ -69,33 +73,20 @@ function jrhLcdRender(ctx, state, pids, theme) {
         if(arrival == null) {
             continue;
         }
-        jrhLcdDrawArrivalRow(ctx, pids, arrival, trainIndex, rowY, rowHeight, w, unit, theme);
+        jrhLcdDrawArrivalRow(ctx, pids, arrival, trainIndex, rowY, rowHeight, w, unit, theme, languageIndex);
     }
 }
 
-/** 当駅止まりを除外した表示対象列車を上限件数まで取得する。 */
+/** 当駅止まりを除外し、発車時刻順の表示対象列車を上限件数まで取得する。 */
 function jrhLcdGetDisplayArrivals(pids, limit) {
-    let result = [];
-    let source = pids.arrivals();
-    // ArrivalEntriesにsize()がないためnull終端まで走査する。
-    for(let i = 0; result.length < limit; i++) {
-        let arrival = source.get(i);
-        if(arrival == null) {
-            break;
-        }
-        if(arrival.terminating()) {
-            continue;
-        }
-        result.push(arrival);
-    }
-    return result;
+    return getArrivalsByDepartureTime(pids, true).slice(0, limit);
 }
 
 /** LCD発車標の列車情報1行を描画する。 */
-function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit, theme) {
-    let routeNumber = primaryLanguage(arrival.routeNumber());
+function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex) {
+    let routeNumber = currentLanguage(arrival.routeNumber(), languageIndex);
     let departure = formatClock(arrival.departureTime());
-    let destination = primaryLanguage(arrival.destination());
+    let destination = currentDestination(arrival, languageIndex);
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * unit) / 2);
     let sx = w / 160.0;
 
@@ -114,14 +105,14 @@ function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit,
         96 * sx, textY, destinationWidth, 9, 1.12 * unit, "left", true);
 
     if(!pids.isPlatformNumberHidden()) {
-        drawText(ctx, "LCD platform " + set, primaryLanguage(arrival.platformName()), theme.platform,
+        drawText(ctx, "LCD platform " + set, currentLanguage(arrival.platformName(), languageIndex), theme.platform,
             153 * sx, textY - 0.2, 8 * sx, 9, 1.32 * unit, "right", "stretch");
     }
 }
 
 /** LCD発車標の停車駅案内行を描画する。 */
-function jrhLcdDrawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit, theme) {
-    let message = jrhLcdGetCallingPointsMessage(arrival);
+function jrhLcdDrawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex) {
+    let message = jrhLcdGetCallingPointsMessage(arrival, languageIndex);
     let scale = 0.78 * unit;
     let viewportWidth = (w - 18) / scale;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
@@ -152,10 +143,10 @@ function jrhLcdDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, theme) {
 }
 
 /** 列車の次停車駅から案内メッセージを組み立てる。 */
-function jrhLcdGetCallingPointsMessage(arrival) {
+function jrhLcdGetCallingPointsMessage(arrival, languageIndex) {
     let route = arrival.route();
     if(route == null) {
-        return primaryLanguage(arrival.destination()) + "に止まります。";
+        return currentDestination(arrival, languageIndex) + "に止まります。";
     }
 
     let platforms = route.getPlatforms();
@@ -164,7 +155,7 @@ function jrhLcdGetCallingPointsMessage(arrival) {
     let names = [];
     let previousName = "";
     for(let i = startIndex; i < platforms.size(); i++) {
-        let name = primaryLanguage(platforms.get(i).getStationName());
+        let name = currentLanguage(platforms.get(i).getStationName(), languageIndex);
         if(name != "" && name != previousName) {
             names.push(name);
             previousName = name;
@@ -175,7 +166,7 @@ function jrhLcdGetCallingPointsMessage(arrival) {
     }
 
     if(names.length == 0) {
-        return primaryLanguage(arrival.destination()) + "に止まります。";
+        return currentDestination(arrival, languageIndex) + "に止まります。";
     }
     if(names.length == 1) {
         return names[0] + "に止まります。";

@@ -11,7 +11,9 @@
         "backgroundColor": "05051F",
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 700,
+        "languageSwitchIntervalMs": 5000,
         "arrivalWarningText": "列車がまいります。",
+        "outOfServiceText": "回送|Out Of Service",
         "directionText": "発車ご案内 Train Infomation",
         "noTrainText": "調整中"
       }
@@ -27,7 +29,9 @@
         "backgroundColor": "1D2053",
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 700,
+        "languageSwitchIntervalMs": 5000,
         "arrivalWarningText": "列車がまいります。",
+        "outOfServiceText": "回送|Out Of Service",
         "directionText": "発車ご案内 Train Infomation",
         "noTrainText": "調整中"
       }
@@ -43,7 +47,9 @@
         "backgroundColor": "05051F",
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 500,
+        "languageSwitchIntervalMs": 5000,
         "arrivalWarningText": "列車がまいります。",
+        "outOfServiceText": "回送|Out Of Service",
         "directionText": "発車ご案内 Train Infomation",
         "noTrainText": "調整中"
       }
@@ -59,7 +65,9 @@
         "backgroundColor": "1D2053",
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 500,
+        "languageSwitchIntervalMs": 5000,
         "arrivalWarningText": "列車がまいります。",
+        "outOfServiceText": "回送|Out Of Service",
         "directionText": "発車ご案内 Train Infomation",
         "noTrainText": "調整中"
       }

@@ -9,20 +9,62 @@ const COLOR_GREEN = 0x16FF35;
 const COLOR_ORANGE = 0xFF9D00;
 const WHITE_TEXTURE = "mtr:textures/block/white.png";
 const PIDS_FONT = "jsblock:unifont";
+const LANGUAGE_SWITCH_INTERVAL_MS = 5000;
 
 /** PIDS用フォントを設定したテキストオブジェクトを作成する。 */
 function createPidsText(comment) {
     return Text.create(comment).font(PIDS_FONT);
 }
 
-/** 多言語文字列から先頭言語の表示値を取り出す。 */
-function primaryLanguage(value) {
+/** 多言語文字列から現在の表示言語を取り出す。 */
+function currentLanguage(value, languageIndex) {
     if(value == null) {
         return "";
     }
-    let text = value.toString();
-    let separator = text.indexOf("|");
-    return (separator < 0 ? text : text.substring(0, separator)).trim();
+    let parts = String(value).split("|");
+    return parts[languageIndex % parts.length].trim();
+}
+
+/** route上の駅名から行き先の多言語文字列を補完する。 */
+function currentDestination(arrival, languageIndex) {
+    let destinationValue = arrival.destination();
+    if(destinationValue == null) {
+        return "";
+    }
+    let destination = String(destinationValue).trim();
+    let route = arrival.route();
+    if(route != null) {
+        let platforms = route.getPlatforms();
+        for(let i = 0; i < platforms.size(); i++) {
+            let stationName = String(platforms.get(i).getStationName());
+            let parts = stationName.split("|");
+            for(let j = 0; j < parts.length; j++) {
+                if(parts[j].trim() == destination) {
+                    return currentLanguage(stationName, languageIndex);
+                }
+            }
+        }
+    }
+    return currentLanguage(destination, languageIndex);
+}
+
+/** 到着情報をコピーし、発車時刻順のJavaScript配列として返す。 */
+function getArrivalsByDepartureTime(pids, excludeTerminating) {
+    let result = [];
+    let source = pids.arrivals();
+    // ArrivalEntriesにsize()がないためnull終端まで走査する。
+    for(let i = 0; ; i++) {
+        let arrival = source.get(i);
+        if(arrival == null) {
+            break;
+        }
+        if(excludeTerminating && arrival.terminating()) {
+            continue;
+        }
+        result.push(arrival);
+    }
+    result.sort((a, b) => a.departureTime() - b.departureTime());
+    return result;
 }
 
 /** エポック時刻を時刻表示（時:分）へ整形する。 */
