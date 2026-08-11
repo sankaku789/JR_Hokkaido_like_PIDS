@@ -18,7 +18,7 @@ function jrhHomeRender(ctx, state, pids, theme) {
     let currentTimeMs = new Date().getTime();
     let languageSwitchIntervalMs = numberOrDefault(
         SCRIPT_INPUT.languageSwitchIntervalMs, LANGUAGE_SWITCH_INTERVAL_MS);
-    let languageIndex = pids.isRowHidden(1)
+    let languageIndex = pids.isRowHidden(2)
         ? 0 : Math.floor(currentTimeMs / languageSwitchIntervalMs);
     let displayArrivals = getArrivalsByDepartureTime(pids, false);
     let firstArrival = pids.arrivals().get(0);
