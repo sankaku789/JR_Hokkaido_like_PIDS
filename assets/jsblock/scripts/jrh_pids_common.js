@@ -35,6 +35,7 @@ function currentDestination(arrival, languageIndex) {
         return "";
     }
     let destination = String(destinationValue).trim();
+    let destinationParts = destination.split("|");
     let route = arrival.route();
     if(route != null) {
         let platforms = route.getPlatforms();
@@ -42,8 +43,11 @@ function currentDestination(arrival, languageIndex) {
             let stationName = String(platforms.get(i).getStationName());
             let parts = stationName.split("|");
             for(let j = 0; j < parts.length; j++) {
-                if(parts[j].trim() == destination) {
-                    return currentLanguage(stationName, languageIndex);
+                let normalizedStationName = parts[j].trim().toLowerCase();
+                for(let k = 0; k < destinationParts.length; k++) {
+                    if(destinationParts[k].trim().toLowerCase() == normalizedStationName) {
+                        return currentLanguage(stationName, languageIndex);
+                    }
                 }
             }
         }
