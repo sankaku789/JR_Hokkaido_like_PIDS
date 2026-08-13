@@ -13,7 +13,7 @@ const jrhHomeFcTheme = {
     departure: 0xFFFFFF,
     destination: 0xFFFFFF,
     platform: 0xFFFF00,
-    message: 0xFFD900,
+    message: 0x16FF35,
     stops: 0x16FF35,
     outOfService: 0xFFFFFF
 };
