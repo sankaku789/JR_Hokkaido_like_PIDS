@@ -2,6 +2,8 @@
 
 include(Resources.id("jsblock:scripts/jrh_pids_common.js"));
 include(Resources.id("jsblock:scripts/jrh_pids_home_renderer.js"));
+include(Resources.id("jsblock:scripts/jrh_pids_display_rules.js"));
+include(Resources.id("jsblock:scripts/jrh_pids_previous_station.js"));
 
 const jrhHomeTheme = {
     defaultBackground: 0x05051F,
@@ -25,6 +27,7 @@ function create(ctx, state, pids) {
 /** 通常色テーマでホーム発車標を描画する。 */
 function render(ctx, state, pids) {
     jrhHomeRender(ctx, state, pids, jrhHomeTheme);
+    jrhRenderPreviousStationOverlay(ctx, state, pids, jrhHomeTheme);
 }
 
 /** 通常色ホーム発車標の描画資源を解放する（解放処理なし）。 */

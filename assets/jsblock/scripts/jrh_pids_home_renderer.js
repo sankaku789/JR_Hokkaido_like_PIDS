@@ -1,6 +1,9 @@
 /* JR北海道風ホーム発車標の共通renderer。 */
 
 const jrhHomeMessageSwitchIntervalMs = 15000;
+const jrhPreviousStationDepartureText = "隣の駅を出ました。";
+const jrhPreviousStationBlinkCount = 4;
+const jrhPreviousStationStateKeepMs = 60000;
 
 /** テーマに従ってホーム発車標全体を描画する。 */
 function jrhHomeRender(ctx, state, pids, theme) {
@@ -23,11 +26,72 @@ function jrhHomeRender(ctx, state, pids, theme) {
     let showDelay = displayPhase % 4 >= 2;
     let displayArrivals = getArrivalsByDepartureTime(pids, false);
     let firstArrival = pids.arrivals().get(0);
-    let arrivalWarningActive = !pids.isRowHidden(0) &&
+    let arrivalNoticeEnabled = !pids.isRowHidden(0);
+
+    // 先発だけでなく次発も前駅発車時刻を事前取得しておく。
+    // 前駅処理で例外が起きても既存のPIDS表示を止めない。
+    let trackedArrivals = displayArrivals.slice(0, 2);
+    if(firstArrival != null) {
+        trackedArrivals.push(firstArrival);
+    }
+    try {
+        updatePreviousStationDepartureCache(trackedArrivals, state, currentTimeMs);
+    } catch(e) {
+        // 前駅表示は追加機能なので、取得失敗時は通常表示と接近表示をそのまま継続する。
+    }
+
+    let arrivalWarningDueAt = firstArrival == null
+        ? null
+        : firstArrival.arrivalTime() - arrivalWarningSeconds * 1000;
+    let arrivalWarningActive = arrivalNoticeEnabled &&
         firstArrival != null &&
         firstArrival.arrivalTime() > currentTimeMs &&
-        firstArrival.arrivalTime() - currentTimeMs <= arrivalWarningSeconds * 1000;
+        currentTimeMs >= arrivalWarningDueAt;
     let warningBlinkVisible = Math.floor(currentTimeMs / warningBlinkIntervalMs) % 2 == 0;
+
+    let previousDepartureRecord = getPreviousStationDepartureRecord(firstArrival, state);
+    let previousDepartureTime = previousDepartureRecord == null
+        ? null : previousDepartureRecord.departureTimeMs;
+    let previousDepartureFirst = previousDepartureTime != null &&
+        arrivalWarningDueAt != null &&
+        previousDepartureTime < arrivalWarningDueAt;
+    let previousDepartureBlinkDuration =
+        warningBlinkIntervalMs * jrhPreviousStationBlinkCount * 2;
+
+    // 次発の間に前駅を発車していても、先発へ繰り上がった時点から4回点滅を開始する。
+    // イベントの順序判定は実際のdepartureTime()と接近開始時刻で行い、表示時間だけ別に持つ。
+    if(arrivalNoticeEnabled &&
+        firstArrival != null &&
+        firstArrival.arrivalTime() > currentTimeMs &&
+        previousDepartureRecord != null &&
+        previousDepartureFirst &&
+        previousDepartureTime <= currentTimeMs &&
+        !previousDepartureRecord.displayCompleted &&
+        previousDepartureRecord.displayStartedAtMs == null) {
+        previousDepartureRecord.displayStartedAtMs = currentTimeMs;
+    }
+
+    let previousDepartureDisplayElapsed =
+        previousDepartureRecord == null || previousDepartureRecord.displayStartedAtMs == null
+            ? -1
+            : currentTimeMs - previousDepartureRecord.displayStartedAtMs;
+
+    if(previousDepartureRecord != null &&
+        previousDepartureRecord.displayStartedAtMs != null &&
+        !previousDepartureRecord.displayCompleted &&
+        previousDepartureDisplayElapsed >= previousDepartureBlinkDuration) {
+        previousDepartureRecord.displayCompleted = true;
+    }
+
+    let previousDepartureMessageActive = arrivalNoticeEnabled &&
+        firstArrival != null &&
+        firstArrival.arrivalTime() > currentTimeMs &&
+        previousDepartureRecord != null &&
+        previousDepartureFirst &&
+        previousDepartureRecord.displayStartedAtMs != null &&
+        !previousDepartureRecord.displayCompleted;
+    let previousDepartureMessageVisible = previousDepartureMessageActive &&
+        Math.floor(previousDepartureDisplayElapsed / warningBlinkIntervalMs) % 2 == 0;
 
     rectangle(ctx, "Navy background", 0, 0, w, h, backgroundColor);
     rectangle(ctx, "Departure row 1", 5 * sx, HEADER_HEIGHT * sy, 150 * sx, ROW_HEIGHT * sy, COLOR_BLACK);
@@ -56,6 +120,15 @@ function jrhHomeRender(ctx, state, pids, theme) {
     for(let row = 0; row < 2; row++) {
         let arrival = row < displayArrivals.length ? displayArrivals[row] : null;
         let rowY = (HEADER_HEIGHT + row * (ROW_HEIGHT + ROW_GAP)) * sy;
+
+        // 前駅発車が接近開始時刻より先なら、4回点滅を完了するまで接近表示を待たせる。
+        if(row == 1 && previousDepartureMessageActive) {
+            if(previousDepartureMessageVisible) {
+                drawText(ctx, "Previous station departure", jrhPreviousStationDepartureText, theme.warning,
+                    7 * sx, rowY + 2 * sy, 146 * sx, 9, 1.08 * unit, "left", true);
+            }
+            continue;
+        }
 
         // 到着警告を常に2行目より優先し、点滅の非表示時は空欄にする。
         if(row == 1 && arrivalWarningActive) {
@@ -142,4 +215,143 @@ function jrhHomeDrawMessageRow(ctx, message, rowY, sx, sy, unit, theme, marqueeP
         }
     }
     text.draw(ctx);
+}
+
+/** 前駅departureTime()を保持するPIDSインスタンス状態を返す。 */
+function getPreviousStationDepartureStore(state) {
+    if(state.jrhPreviousStationDepartures == null) {
+        state.jrhPreviousStationDepartures = {};
+    }
+    return state.jrhPreviousStationDepartures;
+}
+
+/** Arrivalの補正時刻を含めず、同じ便を継続追跡するキーを作る。 */
+function getPreviousStationServiceKey(arrival) {
+    return String(arrival.departureIndex()) + ":" +
+        String(arrival.routeId()) + ":" +
+        String(arrival.platformId()) + ":" +
+        String(arrival.carCount());
+}
+
+/** 現在駅Arrivalのroute上で1つ前のplatform IDを返す。 */
+function getPreviousStationPlatformId(arrival) {
+    let route = arrival == null ? null : arrival.route();
+    if(route == null) {
+        return null;
+    }
+
+    let index = route.getPlatformIndex(arrival.platformId());
+    if(index <= 0) {
+        return null;
+    }
+
+    let previousPlatform = route.getPlatforms().get(index - 1);
+    return previousPlatform == null ? null : previousPlatform.getPlatformId();
+}
+
+/** 前駅Arrival候補が現在駅Arrivalと同じ便か確認する。 */
+function isSamePreviousStationService(currentArrival, candidate) {
+    if(candidate == null ||
+        String(currentArrival.departureIndex()) != String(candidate.departureIndex()) ||
+        String(currentArrival.routeId()) != String(candidate.routeId()) ||
+        currentArrival.carCount() != candidate.carCount()) {
+        return false;
+    }
+
+    let currentCars = currentArrival.cars();
+    let candidateCars = candidate.cars();
+    if(currentCars != null && candidateCars != null &&
+        currentCars.size() > 0 && candidateCars.size() > 0) {
+        if(currentCars.size() != candidateCars.size()) {
+            return false;
+        }
+        for(let i = 0; i < currentCars.size(); i++) {
+            if(String(currentCars.get(i).getVehicleId()) !=
+                String(candidateCars.get(i).getVehicleId())) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/** JCMのArrival APIから前駅の同じ便を探す。 */
+function findPreviousStationArrival(arrival, previousPlatformId) {
+    let arrivals = MTRUtil.Data.getArrivals(previousPlatformId);
+    for(let i = 0; ; i++) {
+        let candidate = arrivals.get(i);
+        if(candidate == null) {
+            return null;
+        }
+        if(isSamePreviousStationService(arrival, candidate)) {
+            return candidate;
+        }
+    }
+}
+
+/** 先発・次発について、前駅発車前からdepartureTime()を継続保存する。 */
+function updatePreviousStationDepartureCache(arrivals, state, currentTimeMs) {
+    let store = getPreviousStationDepartureStore(state);
+    let seen = {};
+
+    for(let i = 0; i < arrivals.length; i++) {
+        let arrival = arrivals[i];
+        if(arrival == null) {
+            continue;
+        }
+
+        let key = getPreviousStationServiceKey(arrival);
+        if(seen[key]) {
+            continue;
+        }
+        seen[key] = true;
+
+        let record = store[key];
+        if(record == null) {
+            record = {
+                departureTimeMs: null,
+                displayStartedAtMs: null,
+                displayCompleted: false,
+                lastSeenAtMs: currentTimeMs
+            };
+            store[key] = record;
+        }
+        record.lastSeenAtMs = currentTimeMs;
+
+        // 一度発車時刻を跨いだらその時刻を固定し、後から予測値を動かさない。
+        if(record.departureTimeMs != null && currentTimeMs >= record.departureTimeMs) {
+            continue;
+        }
+
+        let previousPlatformId = getPreviousStationPlatformId(arrival);
+        if(previousPlatformId == null) {
+            continue;
+        }
+
+        let previousArrival = findPreviousStationArrival(arrival, previousPlatformId);
+        if(previousArrival == null) {
+            continue;
+        }
+
+        let departureTimeMs = Number(previousArrival.departureTime());
+        if(isFinite(departureTimeMs)) {
+            record.departureTimeMs = departureTimeMs;
+        }
+    }
+
+    for(let key in store) {
+        let record = store[key];
+        if(record == null || currentTimeMs - record.lastSeenAtMs > jrhPreviousStationStateKeepMs) {
+            delete store[key];
+        }
+    }
+}
+
+/** 指定Arrivalについて保存済みの前駅departureTime()と表示状態を返す。 */
+function getPreviousStationDepartureRecord(arrival, state) {
+    if(arrival == null || state.jrhPreviousStationDepartures == null) {
+        return null;
+    }
+    let record = state.jrhPreviousStationDepartures[getPreviousStationServiceKey(arrival)];
+    return record == null ? null : record;
 }
