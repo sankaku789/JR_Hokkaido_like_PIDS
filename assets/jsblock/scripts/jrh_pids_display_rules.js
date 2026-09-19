@@ -1,11 +1,8 @@
 /* JR北海道風PIDSの表示ルール上書き。 */
 
-/** 系統番号に半角または全角の数字が含まれているか判定する。 */
-function jrhRouteNumberHasDigit(routeNumber) {
-    if(routeNumber == null) {
-        return false;
-    }
-    return /[0-9０-９]/.test(String(routeNumber));
+/** 系統番号がnullまたは空文字でないか判定する。 */
+function jrhRouteNumberIsPresent(routeNumber) {
+    return routeNumber != null && String(routeNumber).trim() != "";
 }
 
 /** 現在の表示フェーズで遅れ案内を表示しているか判定する。 */
@@ -18,7 +15,7 @@ function jrhIsDelayVisible(arrival, showDelay) {
 
 /**
  * ホーム発車標の列車情報1行を描画する。
- * FCでは系統番号に数字が含まれる場合だけ路線色背景を描画し、遅れ表示は赤にする。
+ * FCでは系統番号が空のときだけ路線色背景を描画せず、遅れ表示は赤にする。
  */
 function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme, languageIndex, showDelay) {
     // 当駅止まりは「回送」と番線だけを描画し、路線色背景は出さない。
@@ -41,7 +38,7 @@ function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, them
     let destinationColor = jrhIsDelayVisible(arrival, showDelay) ? COLOR_RED : theme.destination;
     let platform = currentLanguage(arrival.platformName(), languageIndex);
 
-    if(theme.showRouteColor && jrhRouteNumberHasDigit(routeNumber)) {
+    if(theme.showRouteColor && jrhRouteNumberIsPresent(routeNumber)) {
         rectangle(ctx, "Route color " + row,
             6 * sx, rowY + 1 * sy, 52 * sx, 11 * sy, arrival.routeColor());
     }
@@ -61,7 +58,7 @@ function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, them
 
 /**
  * LCD発車標の列車情報1行を描画する。
- * FCでは系統番号に数字が含まれる場合だけ路線色背景を描画し、遅れ表示は赤にする。
+ * FCでは系統番号が空のときだけ路線色背景を描画せず、遅れ表示は赤にする。
  */
 function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex, showDelay) {
     let routeNumber = currentLanguage(arrival.routeNumber(), languageIndex);
@@ -71,7 +68,7 @@ function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit,
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * unit) / 2);
     let sx = w / 160.0;
 
-    if(theme.showRouteColor && jrhRouteNumberHasDigit(routeNumber)) {
+    if(theme.showRouteColor && jrhRouteNumberIsPresent(routeNumber)) {
         rectangle(ctx, "LCD route color " + set,
             6 * sx, rowY + 0.5, 52 * sx, rowHeight - 1, arrival.routeColor());
     }
