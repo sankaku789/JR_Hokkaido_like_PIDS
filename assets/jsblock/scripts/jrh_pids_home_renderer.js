@@ -49,23 +49,49 @@ function jrhHomeRender(ctx, state, pids, theme) {
         currentTimeMs >= arrivalWarningDueAt;
     let warningBlinkVisible = Math.floor(currentTimeMs / warningBlinkIntervalMs) % 2 == 0;
 
-    let previousDepartureTime = getPreviousStationDepartureTime(firstArrival, state);
+    let previousDepartureRecord = getPreviousStationDepartureRecord(firstArrival, state);
+    let previousDepartureTime = previousDepartureRecord == null
+        ? null : previousDepartureRecord.departureTimeMs;
     let previousDepartureFirst = previousDepartureTime != null &&
         arrivalWarningDueAt != null &&
         previousDepartureTime < arrivalWarningDueAt;
-    let previousDepartureElapsed = previousDepartureTime == null
-        ? -1
-        : currentTimeMs - previousDepartureTime;
     let previousDepartureBlinkDuration =
         warningBlinkIntervalMs * jrhPreviousStationBlinkCount * 2;
+
+    // 次発の間に前駅を発車していても、先発へ繰り上がった時点から3回点滅を開始する。
+    // イベントの順序判定は実際のdepartureTime()と接近開始時刻で行い、表示時間だけ別に持つ。
+    if(arrivalNoticeEnabled &&
+        firstArrival != null &&
+        firstArrival.arrivalTime() > currentTimeMs &&
+        previousDepartureRecord != null &&
+        previousDepartureFirst &&
+        previousDepartureTime <= currentTimeMs &&
+        !previousDepartureRecord.displayCompleted &&
+        previousDepartureRecord.displayStartedAtMs == null) {
+        previousDepartureRecord.displayStartedAtMs = currentTimeMs;
+    }
+
+    let previousDepartureDisplayElapsed =
+        previousDepartureRecord == null || previousDepartureRecord.displayStartedAtMs == null
+            ? -1
+            : currentTimeMs - previousDepartureRecord.displayStartedAtMs;
+
+    if(previousDepartureRecord != null &&
+        previousDepartureRecord.displayStartedAtMs != null &&
+        !previousDepartureRecord.displayCompleted &&
+        previousDepartureDisplayElapsed >= previousDepartureBlinkDuration) {
+        previousDepartureRecord.displayCompleted = true;
+    }
+
     let previousDepartureMessageActive = arrivalNoticeEnabled &&
         firstArrival != null &&
         firstArrival.arrivalTime() > currentTimeMs &&
+        previousDepartureRecord != null &&
         previousDepartureFirst &&
-        previousDepartureElapsed >= 0 &&
-        previousDepartureElapsed < previousDepartureBlinkDuration;
+        previousDepartureRecord.displayStartedAtMs != null &&
+        !previousDepartureRecord.displayCompleted;
     let previousDepartureMessageVisible = previousDepartureMessageActive &&
-        Math.floor(previousDepartureElapsed / warningBlinkIntervalMs) % 2 == 0;
+        Math.floor(previousDepartureDisplayElapsed / warningBlinkIntervalMs) % 2 == 0;
 
     rectangle(ctx, "Navy background", 0, 0, w, h, backgroundColor);
     rectangle(ctx, "Departure row 1", 5 * sx, HEADER_HEIGHT * sy, 150 * sx, ROW_HEIGHT * sy, COLOR_BLACK);
@@ -284,6 +310,8 @@ function updatePreviousStationDepartureCache(arrivals, state, currentTimeMs) {
         if(record == null) {
             record = {
                 departureTimeMs: null,
+                displayStartedAtMs: null,
+                displayCompleted: false,
                 lastSeenAtMs: currentTimeMs
             };
             store[key] = record;
@@ -319,11 +347,11 @@ function updatePreviousStationDepartureCache(arrivals, state, currentTimeMs) {
     }
 }
 
-/** 指定Arrivalについて保存済みの前駅departureTime()を返す。 */
-function getPreviousStationDepartureTime(arrival, state) {
+/** 指定Arrivalについて保存済みの前駅departureTime()と表示状態を返す。 */
+function getPreviousStationDepartureRecord(arrival, state) {
     if(arrival == null || state.jrhPreviousStationDepartures == null) {
         return null;
     }
     let record = state.jrhPreviousStationDepartures[getPreviousStationServiceKey(arrival)];
-    return record == null ? null : record.departureTimeMs;
+    return record == null ? null : record;
 }
