@@ -18,8 +18,9 @@ function jrhHomeRender(ctx, state, pids, theme) {
     let currentTimeMs = new Date().getTime();
     let languageSwitchIntervalMs = numberOrDefault(
         SCRIPT_INPUT.languageSwitchIntervalMs, LANGUAGE_SWITCH_INTERVAL_MS);
-    let languageIndex = pids.isRowHidden(2)
-        ? 0 : Math.floor(currentTimeMs / languageSwitchIntervalMs);
+    let displayPhase = Math.floor(currentTimeMs / languageSwitchIntervalMs);
+    let languageIndex = pids.isRowHidden(2) ? 0 : displayPhase;
+    let showDelay = displayPhase % 4 >= 2;
     let displayArrivals = getArrivalsByDepartureTime(pids, false);
     let firstArrival = pids.arrivals().get(0);
     let arrivalWarningActive = !pids.isRowHidden(0) &&
@@ -81,12 +82,12 @@ function jrhHomeRender(ctx, state, pids, theme) {
             continue;
         }
 
-        jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme, languageIndex);
+        jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme, languageIndex, showDelay);
     }
 }
 
 /** ホーム発車標の列車情報1行を描画する。 */
-function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme, languageIndex) {
+function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme, languageIndex, showDelay) {
     // 当駅止まりは「回送」と番線だけを描画し、路線色背景は出さない。
     if(arrival.terminating()) {
         let outOfServiceText = SCRIPT_INPUT.outOfServiceText == null
@@ -103,7 +104,7 @@ function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, them
 
     let routeNumber = currentLanguage(arrival.routeNumber(), languageIndex);
     let departure = formatClock(arrival.departureTime());
-    let destination = currentDestination(arrival, languageIndex);
+    let destination = currentDestinationOrDelay(arrival, languageIndex, showDelay);
     let platform = currentLanguage(arrival.platformName(), languageIndex);
 
     if(theme.showRouteColor) {

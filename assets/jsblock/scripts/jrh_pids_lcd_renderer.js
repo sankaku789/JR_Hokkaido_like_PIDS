@@ -17,8 +17,9 @@ function jrhLcdRender(ctx, state, pids, theme) {
     let currentTimeMs = new Date().getTime();
     let languageSwitchIntervalMs = numberOrDefault(
         SCRIPT_INPUT.languageSwitchIntervalMs, LANGUAGE_SWITCH_INTERVAL_MS);
-    let languageIndex = pids.isRowHidden(2)
-        ? 0 : Math.floor(currentTimeMs / languageSwitchIntervalMs);
+    let displayPhase = Math.floor(currentTimeMs / languageSwitchIntervalMs);
+    let languageIndex = pids.isRowHidden(2) ? 0 : displayPhase;
+    let showDelay = displayPhase % 4 >= 2;
 
     rectangle(ctx, "LCD background", 0, 0, w, h, backgroundColor);
 
@@ -45,7 +46,7 @@ function jrhLcdRender(ctx, state, pids, theme) {
         drawText(ctx, "LCD no train", SCRIPT_INPUT.noTrainText, theme.noTrain,
             6, firstTrainRowY + 1, w - 12, 9, 0.92 * unit, "left", true);
     } else {
-        jrhLcdDrawArrivalRow(ctx, pids, firstArrival, 0, firstTrainRowY, rowHeight, w, unit, theme, languageIndex);
+        jrhLcdDrawArrivalRow(ctx, pids, firstArrival, 0, firstTrainRowY, rowHeight, w, unit, theme, languageIndex, showDelay);
         jrhLcdDrawStopsRow(ctx, firstArrival, 0, firstStopsRowY, rowHeight, w, unit, theme, 0);
     }
 
@@ -82,7 +83,7 @@ function jrhLcdRender(ctx, state, pids, theme) {
         if(arrival == null) {
             continue;
         }
-        jrhLcdDrawArrivalRow(ctx, pids, arrival, trainIndex, rowY, rowHeight, w, unit, theme, languageIndex);
+        jrhLcdDrawArrivalRow(ctx, pids, arrival, trainIndex, rowY, rowHeight, w, unit, theme, languageIndex, showDelay);
     }
 }
 
@@ -92,10 +93,10 @@ function jrhLcdGetDisplayArrivals(pids, limit) {
 }
 
 /** LCD発車標の列車情報1行を描画する。 */
-function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex) {
+function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex, showDelay) {
     let routeNumber = currentLanguage(arrival.routeNumber(), languageIndex);
     let departure = formatClock(arrival.departureTime());
-    let destination = currentDestination(arrival, languageIndex);
+    let destination = currentDestinationOrDelay(arrival, languageIndex, showDelay);
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * unit) / 2);
     let sx = w / 160.0;
 

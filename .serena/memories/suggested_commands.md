@@ -1,6 +1,4 @@
-# Suggested Commands
-
-- Runtime reload after editing: press `F3 + T` in Minecraft.
-- Release packaging equivalent: `mkdir -p dist && zip -r "dist/JR_Hokkaido_like_PIDS-<version>.zip" pack.mcmeta pack.png assets`.
-- Inspect changes before completion: `git status --short` and `git diff -- <affected paths>`.
-- No repository-provided development server, test runner, formatter, linter, or build command exists.
+# Suggested commands
+- Syntax-check a script while bypassing the environment's optional Node preload: `env -u NODE_OPTIONS node --check <script.js>`.
+- Reload the resource pack in Minecraft after edits with `F3 + T`.
+- Inspect only semantic changes when the worktree contains CRLF conversions: `git diff --ignore-space-at-eol`.

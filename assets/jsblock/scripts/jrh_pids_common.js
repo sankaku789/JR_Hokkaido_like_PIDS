@@ -55,6 +55,21 @@ function currentDestination(arrival, languageIndex) {
     return currentLanguage(destination, languageIndex);
 }
 
+/** 2分以上遅れている列車では、行き先と遅延時間を交互に返す。 */
+function currentDestinationOrDelay(arrival, languageIndex, showDelay) {
+    let deviation = arrival.deviation();
+    if(!showDelay || deviation < 2 * 60 * 1000) {
+        return currentDestination(arrival, languageIndex);
+    }
+
+    if(deviation >= 120 * 60 * 1000) {
+        return currentLanguage("遅れ120分以上|120 minutes over", languageIndex);
+    }
+
+    let delayMinutes = Math.floor(deviation / 60000);
+    return currentLanguage("遅れ約" + delayMinutes + "分|" + delayMinutes + " minutes behind", languageIndex);
+}
+
 /** 文字数から一定速度に近いメッセージスクロール時間を算出する。 */
 function getMessageMarqueeDuration(message) {
     let scrollDistanceInCharacters = MESSAGE_MARQUEE_VIEWPORT_CHARS + Array.from(message).length;

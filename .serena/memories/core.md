@@ -1,8 +1,6 @@
-# Core
-
-- Minecraft resource pack adding JR Hokkaido-style PIDS displays for MTR 4 + Joban Client Mod v2.
-- Four preset entry scripts under `assets/jsblock/scripts/`: home/LCD x three-color/full-color. Entry scripts define themes and include shared renderer/common scripts.
-- Shared behavior lives in `jrh_pids_common.js`, `jrh_pids_home_renderer.js`, and `jrh_pids_lcd_renderer.js`; preserve theme entry scripts when changing behavior shared across color variants.
-- JCM supplies runtime globals/APIs such as `Resources`, `Text`, `Texture`, `SCRIPT_INPUT`, and `pids`; scripts are not standalone browser/Node modules.
-- Presets and user-configurable defaults are registered in `assets/jsblock/joban_custom_resources.json`.
-- User-facing project map: `mem:project-overview`. Toolchain details: `mem:tech_stack`. Code conventions: `mem:conventions`. Completion checks: `mem:task_completion`.
+# Project core
+- Minecraft resource pack adding JR Hokkaido-style PIDS presets for MTR 4 + Joban Client Mod v2.
+- Runtime scripts live in `assets/jsblock/scripts/`; `jrh_pids_common.js` is shared logic, `jrh_pids_home_renderer.js` and `jrh_pids_lcd_renderer.js` are layout renderers, and `jrh_like_pids*.js` define themes/entrypoints.
+- Presets and script inputs are registered in `assets/jsblock/joban_custom_resources.json`.
+- User documentation is maintained in Japanese, English, and Chinese README/HOWTO files.
+- See `mem:tech_stack`, `mem:conventions`, `mem:suggested_commands`, and `mem:task_completion`.
