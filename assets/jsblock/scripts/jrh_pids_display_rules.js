@@ -18,6 +18,24 @@ function jrhDelayDisplayEnabled() {
     return text == "true" || text == "1" || text == "on" || text == "enabled" || text == "有効";
 }
 
+/**
+ * 表示用の発車時刻を返す。
+ * MTRのdepartureTime()は予定時刻にdeviationを加えた値なので、
+ * 遅れ表示無効時はdeviationを0扱いにして予定時刻へ戻す。
+ */
+function jrhDisplayDepartureTime(arrival) {
+    let departureTime = Number(arrival.departureTime());
+    if(jrhDelayDisplayEnabled()) {
+        return departureTime;
+    }
+
+    let deviation = Number(arrival.deviation());
+    if(!isFinite(deviation)) {
+        deviation = 0;
+    }
+    return departureTime - deviation;
+}
+
 /** 2分以上遅れている列車では、設定が有効な場合だけ行き先と遅延時間を交互に返す。 */
 function currentDestinationOrDelay(arrival, languageIndex, showDelay) {
     let deviation = Number(arrival.deviation());
@@ -61,7 +79,7 @@ function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, them
     }
 
     let routeNumber = currentLanguage(arrival.routeNumber(), languageIndex);
-    let departure = formatClock(arrival.departureTime());
+    let departure = formatClock(jrhDisplayDepartureTime(arrival));
     let destination = currentDestinationOrDelay(arrival, languageIndex, showDelay);
     let destinationColor = jrhIsDelayVisible(arrival, showDelay) ? COLOR_RED : theme.destination;
     let platform = currentLanguage(arrival.platformName(), languageIndex);
@@ -90,7 +108,7 @@ function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, them
  */
 function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex, showDelay) {
     let routeNumber = currentLanguage(arrival.routeNumber(), languageIndex);
-    let departure = formatClock(arrival.departureTime());
+    let departure = formatClock(jrhDisplayDepartureTime(arrival));
     let destination = currentDestinationOrDelay(arrival, languageIndex, showDelay);
     let destinationColor = jrhIsDelayVisible(arrival, showDelay) ? COLOR_RED : theme.destination;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * unit) / 2);
