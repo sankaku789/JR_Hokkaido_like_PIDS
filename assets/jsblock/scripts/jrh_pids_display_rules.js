@@ -5,9 +5,37 @@ function jrhRouteNumberIsPresent(routeNumber) {
     return routeNumber != null && String(routeNumber).trim() != "";
 }
 
+/** scriptInputの遅れ表示設定を判定する。未指定時は無効。 */
+function jrhDelayDisplayEnabled() {
+    let value = SCRIPT_INPUT.delayDisplayEnabled;
+    if(value == null) {
+        return false;
+    }
+    if(typeof value == "boolean") {
+        return value;
+    }
+    let text = String(value).trim().toLowerCase();
+    return text == "true" || text == "1" || text == "on" || text == "enabled" || text == "有効";
+}
+
+/** 2分以上遅れている列車では、設定が有効な場合だけ行き先と遅延時間を交互に返す。 */
+function currentDestinationOrDelay(arrival, languageIndex, showDelay) {
+    let deviation = Number(arrival.deviation());
+    if(!jrhDelayDisplayEnabled() || !showDelay || deviation < 2 * 60 * 1000) {
+        return currentDestination(arrival, languageIndex);
+    }
+
+    if(deviation >= 120 * 60 * 1000) {
+        return currentLanguage("遅れ120分以上|120 minutes over", languageIndex);
+    }
+
+    let delayMinutes = Math.floor(deviation / 60000);
+    return currentLanguage("遅れ約" + delayMinutes + "分|" + delayMinutes + " minutes behind", languageIndex);
+}
+
 /** 現在の表示フェーズで遅れ案内を表示しているか判定する。 */
 function jrhIsDelayVisible(arrival, showDelay) {
-    if(arrival == null || !showDelay) {
+    if(arrival == null || !jrhDelayDisplayEnabled() || !showDelay) {
         return false;
     }
     return Number(arrival.deviation()) >= 2 * 60 * 1000;
