@@ -2,7 +2,7 @@
 
 const jrhHomeMessageSwitchIntervalMs = 15000;
 const jrhPreviousStationDepartureText = "隣の駅を出ました。";
-const jrhPreviousStationBlinkCount = 3;
+const jrhPreviousStationBlinkCount = 5;
 const jrhPreviousStationStateKeepMs = 60000;
 
 /** テーマに従ってホーム発車標全体を描画する。 */
@@ -58,7 +58,7 @@ function jrhHomeRender(ctx, state, pids, theme) {
     let previousDepartureBlinkDuration =
         warningBlinkIntervalMs * jrhPreviousStationBlinkCount * 2;
 
-    // 次発の間に前駅を発車していても、先発へ繰り上がった時点から3回点滅を開始する。
+    // 次発の間に前駅を発車していても、先発へ繰り上がった時点から5回点滅を開始する。
     // イベントの順序判定は実際のdepartureTime()と接近開始時刻で行い、表示時間だけ別に持つ。
     if(arrivalNoticeEnabled &&
         firstArrival != null &&
@@ -121,7 +121,7 @@ function jrhHomeRender(ctx, state, pids, theme) {
         let arrival = row < displayArrivals.length ? displayArrivals[row] : null;
         let rowY = (HEADER_HEIGHT + row * (ROW_HEIGHT + ROW_GAP)) * sy;
 
-        // 前駅発車が接近開始時刻より先なら、3回点滅を完了するまで接近表示を待たせる。
+        // 前駅発車が接近開始時刻より先なら、5回点滅を完了するまで接近表示を待たせる。
         if(row == 1 && previousDepartureMessageActive) {
             if(previousDepartureMessageVisible) {
                 drawText(ctx, "Previous station departure", jrhPreviousStationDepartureText, theme.warning,
