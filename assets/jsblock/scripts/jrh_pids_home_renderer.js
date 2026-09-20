@@ -364,8 +364,10 @@ function jrhHomeRender(ctx, state, pids, theme) {
     let previousDepartureRecord = getPreviousStationDepartureRecord(firstArrival, state);
     let previousDepartureTime = previousDepartureRecord == null
         ? null : previousDepartureRecord.departureTimeMs;
-    let previousDepartureBlinkDuration = warningBlinkIntervalMs * jrhPreviousStationBlinkCount * 2;
+    let previousDepartureBlinkCycleMs = warningBlinkIntervalMs * 2;
+    let previousDepartureBlinkDuration = previousDepartureBlinkCycleMs * jrhPreviousStationBlinkCount;
 
+    // 個別render時刻ではなく、次の共通ONサイクル境界から開始して駅内のPIDSを同期する。
     if(arrivalNoticeEnabled &&
         firstArrival != null &&
         firstArrival.arrivalTime() > currentTimeMs &&
@@ -374,7 +376,8 @@ function jrhHomeRender(ctx, state, pids, theme) {
         previousDepartureTime <= currentTimeMs &&
         !previousDepartureRecord.displayCompleted &&
         previousDepartureRecord.displayStartedAtMs == null) {
-        previousDepartureRecord.displayStartedAtMs = currentTimeMs;
+        previousDepartureRecord.displayStartedAtMs =
+            Math.ceil(currentTimeMs / previousDepartureBlinkCycleMs) * previousDepartureBlinkCycleMs;
     }
 
     let previousDepartureDisplayElapsed =
@@ -396,9 +399,10 @@ function jrhHomeRender(ctx, state, pids, theme) {
         previousDepartureTime != null &&
         previousDepartureTime <= currentTimeMs &&
         previousDepartureRecord.displayStartedAtMs != null &&
+        currentTimeMs >= previousDepartureRecord.displayStartedAtMs &&
         !previousDepartureRecord.displayCompleted;
     let previousDepartureMessageVisible = previousDepartureMessageActive &&
-        Math.floor(previousDepartureDisplayElapsed / warningBlinkIntervalMs) % 2 == 0;
+        Math.floor(currentTimeMs / warningBlinkIntervalMs) % 2 == 0;
 
     rectangle(ctx, "Navy background", 0, 0, w, h, theme.background);
     rectangle(ctx, "Departure row 1", 5 * sx, HEADER_HEIGHT * sy, 150 * sx, ROW_HEIGHT * sy, COLOR_BLACK);
