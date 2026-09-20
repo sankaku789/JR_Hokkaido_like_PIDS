@@ -120,21 +120,11 @@ function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit,
     }
 }
 
-/** LCD発車標の2段目に、編成両数と終点までの停車駅案内を固定サイズでスクロール表示する。 */
+/** LCD発車標の2段目に、固定テキスト入力と同じ描画関数で編成・停車駅案内を表示する。 */
 function jrhLcdDrawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex) {
     let message = jrhLcdGetTrainInfoMessage(arrival, languageIndex);
-    let scale = 0.78 * unit;
-    let viewportWidth = (w - 18) / scale;
-    let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
-    createPidsText("LCD train info " + set)
-        .text(message)
-        .color(theme.stops)
-        .pos(6, textY)
-        .size(viewportWidth, 9)
-        .scale(scale)
-        .leftAlign()
-        .marquee(getMessageMarqueeDuration(message))
-        .draw(ctx);
+    let trainInfoTheme = {message: theme.stops};
+    jrhLcdDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, trainInfoTheme, null);
 }
 
 /** LCD発車標の追加メッセージ行を描画する。 */
