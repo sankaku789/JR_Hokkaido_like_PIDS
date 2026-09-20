@@ -1,12 +1,11 @@
-/*
- * JR北海道風 PIDS 共通定数
- */
+/* JR北海道風 PIDS 共通処理。 */
 
 const COLOR_BLACK = 0x000000;
 const COLOR_WHITE = 0xF4F4FF;
 const COLOR_RED = 0xFF1800;
 const COLOR_GREEN = 0x16FF35;
 const COLOR_ORANGE = 0xFF9D00;
+const COLOR_YELLOW = 0xFFFF00;
 const WHITE_TEXTURE = "mtr:textures/block/white.png";
 const PIDS_FONT = "jsblock:unifont";
 const LANGUAGE_SWITCH_INTERVAL_MS = 5000;
@@ -19,14 +18,14 @@ const JRH_COMMON_CACHE_CLEANUP_INTERVAL_MS = 60 * 1000;
 const jrhRoutePlatformMetadataCache = {};
 const jrhDestinationMatchCache = {};
 let jrhCommonCacheNextCleanupMs = 0;
+let jrhConfiguredTheme = null;
 
 /** 期限切れの共通metadata cacheを低頻度で破棄する。 */
 function jrhCleanupCommonCaches(currentTimeMs) {
     if(currentTimeMs < jrhCommonCacheNextCleanupMs) {
         return;
     }
-    jrhCommonCacheNextCleanupMs =
-        currentTimeMs + JRH_COMMON_CACHE_CLEANUP_INTERVAL_MS;
+    jrhCommonCacheNextCleanupMs = currentTimeMs + JRH_COMMON_CACHE_CLEANUP_INTERVAL_MS;
 
     for(let key in jrhRoutePlatformMetadataCache) {
         let cached = jrhRoutePlatformMetadataCache[key];
@@ -40,6 +39,65 @@ function jrhCleanupCommonCaches(currentTimeMs) {
             delete jrhDestinationMatchCache[key];
         }
     }
+}
+
+/** ScriptInputの真偽値を解釈する。 */
+function booleanOrDefault(value, fallback) {
+    if(value == null) {
+        return fallback;
+    }
+    if(typeof value == "boolean") {
+        return value;
+    }
+    let text = String(value).trim().toLowerCase();
+    if(text == "true" || text == "1" || text == "on" || text == "enabled" || text == "有効") {
+        return true;
+    }
+    if(text == "false" || text == "0" || text == "off" || text == "disabled" || text == "無効") {
+        return false;
+    }
+    return fallback;
+}
+
+/** 通常色・フルカラーの既存配色をScriptInputのモードから復元する。 */
+function jrhGetConfiguredTheme() {
+    if(jrhConfiguredTheme != null) {
+        return jrhConfiguredTheme;
+    }
+
+    let fullColor = booleanOrDefault(SCRIPT_INPUT.fullColorMode, false);
+    if(fullColor) {
+        jrhConfiguredTheme = {
+            background: parseColor(SCRIPT_INPUT.backgroundColor, 0x1D2053),
+            showRouteColor: true,
+            header: COLOR_WHITE,
+            noTrain: COLOR_GREEN,
+            warning: COLOR_RED,
+            route: 0xFFFFFF,
+            departure: 0xFFFFFF,
+            destination: 0xFFFFFF,
+            platform: COLOR_YELLOW,
+            message: COLOR_GREEN,
+            stops: COLOR_GREEN,
+            outOfService: 0xFFFFFF
+        };
+    } else {
+        jrhConfiguredTheme = {
+            background: parseColor(SCRIPT_INPUT.backgroundColor, 0x05051F),
+            showRouteColor: false,
+            header: COLOR_WHITE,
+            noTrain: COLOR_GREEN,
+            warning: COLOR_RED,
+            route: COLOR_GREEN,
+            departure: COLOR_GREEN,
+            destination: COLOR_GREEN,
+            platform: COLOR_ORANGE,
+            message: COLOR_GREEN,
+            stops: COLOR_GREEN,
+            outOfService: COLOR_GREEN
+        };
+    }
+    return jrhConfiguredTheme;
 }
 
 /** PIDS用フォントを設定したテキストオブジェクトを作成する。 */
@@ -56,10 +114,7 @@ function currentLanguage(value, languageIndex) {
     return parts[languageIndex % parts.length].trim();
 }
 
-/**
- * MTRのroute ID mapからArrivalのrouteを取得する。
- * map APIが利用できない環境では従来のArrivalWrapper.route()へフォールバックする。
- */
+/** MTRのroute ID mapからArrivalのrouteを取得する。 */
 function jrhGetRoute(arrival) {
     if(arrival == null) {
         return null;
@@ -74,10 +129,7 @@ function jrhGetRoute(arrival) {
     return arrival.route();
 }
 
-/**
- * route・現在platformから導出できる不変寄りの情報を短時間共有する。
- * route編集への追従を残すため、一定時間で再構築する。
- */
+/** route・現在platformから導出できる情報を短時間共有する。 */
 function jrhGetRoutePlatformMetadata(arrival, currentTimeMs) {
     if(arrival == null) {
         return null;
@@ -175,10 +227,34 @@ function currentDestination(arrival, languageIndex) {
     return currentLanguage(matchedValue, languageIndex);
 }
 
-/** 2分以上遅れている列車では、行き先と遅延時間を交互に返す。 */
+/** 系統番号がnullまたは空文字でないか判定する。 */
+function jrhRouteNumberIsPresent(routeNumber) {
+    return routeNumber != null && String(routeNumber).trim() != "";
+}
+
+/** ScriptInputの遅れ表示設定を判定する。 */
+function jrhDelayDisplayEnabled() {
+    return booleanOrDefault(SCRIPT_INPUT.delayDisplayEnabled, false);
+}
+
+/** 遅れ表示設定に応じた表示用発車時刻を返す。 */
+function jrhDisplayDepartureTime(arrival) {
+    let departureTime = Number(arrival.departureTime());
+    if(jrhDelayDisplayEnabled()) {
+        return departureTime;
+    }
+
+    let deviation = Number(arrival.deviation());
+    if(!isFinite(deviation)) {
+        deviation = 0;
+    }
+    return departureTime - deviation;
+}
+
+/** 2分以上遅れている列車では、設定が有効な場合だけ遅延時間を交互表示する。 */
 function currentDestinationOrDelay(arrival, languageIndex, showDelay) {
-    let deviation = arrival.deviation();
-    if(!showDelay || deviation < 2 * 60 * 1000) {
+    let deviation = Number(arrival.deviation());
+    if(!jrhDelayDisplayEnabled() || !showDelay || deviation < 2 * 60 * 1000) {
         return currentDestination(arrival, languageIndex);
     }
 
@@ -190,6 +266,14 @@ function currentDestinationOrDelay(arrival, languageIndex, showDelay) {
     return currentLanguage("遅れ約" + delayMinutes + "分|" + delayMinutes + " minutes behind", languageIndex);
 }
 
+/** 現在の表示フェーズで遅れ案内を表示しているか判定する。 */
+function jrhIsDelayVisible(arrival, showDelay) {
+    if(arrival == null || !jrhDelayDisplayEnabled() || !showDelay) {
+        return false;
+    }
+    return Number(arrival.deviation()) >= 2 * 60 * 1000;
+}
+
 /** 文字数から一定速度に近いメッセージスクロール時間を算出する。 */
 function getMessageMarqueeDuration(message) {
     let scrollDistanceInCharacters = MESSAGE_MARQUEE_VIEWPORT_CHARS + Array.from(message).length;
@@ -199,29 +283,7 @@ function getMessageMarqueeDuration(message) {
     return scrollDistanceInCharacters * secondsPerCharacter;
 }
 
-/** 到着情報をコピーし、発車時刻順のJavaScript配列として返す。 */
-function getArrivalsByDepartureTime(pids, excludeTerminating) {
-    let result = [];
-    let source = pids.arrivals();
-    // ArrivalEntriesにsize()がないためnull終端まで走査する。
-    for(let i = 0; ; i++) {
-        let arrival = source.get(i);
-        if(arrival == null) {
-            break;
-        }
-        if(excludeTerminating && arrival.terminating()) {
-            continue;
-        }
-        result.push(arrival);
-    }
-    result.sort((a, b) => a.departureTime() - b.departureTime());
-    return result;
-}
-
-/**
- * 表示に必要な上位件数だけを発車時刻順で取得する。
- * 同一時刻では元のArrival順を維持し、全件sortを避ける。
- */
+/** 表示に必要な上位件数だけを発車時刻順で取得する。 */
 function getTopArrivalsByDepartureTime(pids, excludeTerminating, limit) {
     let result = [];
     if(limit <= 0) {
@@ -240,8 +302,7 @@ function getTopArrivalsByDepartureTime(pids, excludeTerminating, limit) {
 
         let departureTime = Number(arrival.departureTime());
         let insertAt = result.length;
-        while(insertAt > 0 &&
-            Number(result[insertAt - 1].departureTime()) > departureTime) {
+        while(insertAt > 0 && Number(result[insertAt - 1].departureTime()) > departureTime) {
             insertAt--;
         }
 

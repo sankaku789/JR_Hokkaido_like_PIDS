@@ -1,8 +1,10 @@
-/* JR北海道風鉄路願景LCDの共通renderer。 */
+/* JR北海道風鉄路願景LCD発車標。 */
+
+include(Resources.id("jsblock:scripts/jrh_pids_common.js"));
 
 const jrhLcdMessageSwitchIntervalMs = 15000;
 
-/** テーマに従ってLCD発車標全体を描画する。 */
+/** LCD発車標全体を描画する。 */
 function jrhLcdRender(ctx, state, pids, theme) {
     const OUTER_PADDING = 3;
     const HEADER_HEIGHT = 11;
@@ -10,7 +12,6 @@ function jrhLcdRender(ctx, state, pids, theme) {
     const ROW_COUNT = 4;
     let w = pids.width;
     let h = pids.height;
-    let backgroundColor = parseColor(SCRIPT_INPUT.backgroundColor, theme.defaultBackground);
     let rowsTop = HEADER_HEIGHT + OUTER_PADDING;
     let rowHeight = (h - rowsTop - OUTER_PADDING - ROW_GAP * (ROW_COUNT - 1)) / ROW_COUNT;
     let unit = Math.min(w / 160.0, h / 72.0);
@@ -21,7 +22,7 @@ function jrhLcdRender(ctx, state, pids, theme) {
     let languageIndex = pids.isRowHidden(2) ? 0 : displayPhase;
     let showDelay = displayPhase % 4 >= 2;
 
-    rectangle(ctx, "LCD background", 0, 0, w, h, backgroundColor);
+    rectangle(ctx, "LCD background", 0, 0, w, h, theme.background);
 
     let headerMessage = pids.getCustomMessage(0);
     if(headerMessage == null || headerMessage.trim() == "") {
@@ -36,8 +37,7 @@ function jrhLcdRender(ctx, state, pids, theme) {
             w - OUTER_PADDING * 2, rowHeight, COLOR_BLACK);
     }
 
-    // terminating列車を除外して後続列車を詰め、最大3件表示する。
-    let displayArrivals = jrhLcdGetDisplayArrivals(pids, 3);
+    let displayArrivals = getTopArrivalsByDepartureTime(pids, true, 3);
     let firstArrival = displayArrivals.length > 0 ? displayArrivals[0] : null;
     let firstTrainRowY = rowsTop;
     let firstStopsRowY = rowsTop + rowHeight + ROW_GAP;
@@ -46,8 +46,10 @@ function jrhLcdRender(ctx, state, pids, theme) {
         drawText(ctx, "LCD no train", SCRIPT_INPUT.noTrainText, theme.noTrain,
             6, firstTrainRowY + 1, w - 12, 9, 0.92 * unit, "left", true);
     } else {
-        jrhLcdDrawArrivalRow(ctx, pids, firstArrival, 0, firstTrainRowY, rowHeight, w, unit, theme, languageIndex, showDelay);
-        jrhLcdDrawStopsRow(ctx, firstArrival, 0, firstStopsRowY, rowHeight, w, unit, theme, 0, currentTimeMs);
+        jrhLcdDrawArrivalRow(ctx, pids, firstArrival, 0, firstTrainRowY, rowHeight,
+            w, unit, theme, languageIndex, showDelay);
+        jrhLcdDrawStopsRow(ctx, firstArrival, 0, firstStopsRowY, rowHeight,
+            w, unit, theme, 0, currentTimeMs);
     }
 
     for(let trainIndex = 1; trainIndex < 3; trainIndex++) {
@@ -55,7 +57,6 @@ function jrhLcdRender(ctx, state, pids, theme) {
         let displayRow = trainIndex + 1;
         let rowY = rowsTop + displayRow * (rowHeight + ROW_GAP);
 
-        // 3列目（4段目）は第2メッセージと交互に表示する。
         if(trainIndex == 2) {
             let secondMessage = pids.getCustomMessage(1);
             let hasSecondMessage = secondMessage != null && secondMessage.trim() != "";
@@ -75,7 +76,8 @@ function jrhLcdRender(ctx, state, pids, theme) {
                 let marqueeProgress = !secondRowHidden && secondMessageScrolls
                     ? (messageCycleElapsed - jrhLcdMessageSwitchIntervalMs) / secondMessageDurationMs
                     : null;
-                jrhLcdDrawMessageRow(ctx, secondMessageText, rowY, rowHeight, w, unit, theme, marqueeProgress);
+                jrhLcdDrawMessageRow(ctx, secondMessageText, rowY, rowHeight,
+                    w, unit, theme, marqueeProgress);
                 continue;
             }
         }
@@ -83,24 +85,21 @@ function jrhLcdRender(ctx, state, pids, theme) {
         if(arrival == null) {
             continue;
         }
-        jrhLcdDrawArrivalRow(ctx, pids, arrival, trainIndex, rowY, rowHeight, w, unit, theme, languageIndex, showDelay);
+        jrhLcdDrawArrivalRow(ctx, pids, arrival, trainIndex, rowY, rowHeight,
+            w, unit, theme, languageIndex, showDelay);
     }
-}
-
-/** 当駅止まりを除外し、発車時刻順の表示対象列車を上限件数まで取得する。 */
-function jrhLcdGetDisplayArrivals(pids, limit) {
-    return getTopArrivalsByDepartureTime(pids, true, limit);
 }
 
 /** LCD発車標の列車情報1行を描画する。 */
 function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex, showDelay) {
     let routeNumber = currentLanguage(arrival.routeNumber(), languageIndex);
-    let departure = formatClock(arrival.departureTime());
+    let departure = formatClock(jrhDisplayDepartureTime(arrival));
     let destination = currentDestinationOrDelay(arrival, languageIndex, showDelay);
+    let destinationColor = jrhIsDelayVisible(arrival, showDelay) ? COLOR_RED : theme.destination;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * unit) / 2);
     let sx = w / 160.0;
 
-    if(theme.showRouteColor) {
+    if(theme.showRouteColor && jrhRouteNumberIsPresent(routeNumber)) {
         rectangle(ctx, "LCD route color " + set,
             6 * sx, rowY + 0.5, 52 * sx, rowHeight - 1, arrival.routeColor());
     }
@@ -111,7 +110,7 @@ function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit,
         65 * sx, textY - 0.5, 27 * sx, 9, 1.32 * unit, "left", "stretch");
 
     let destinationWidth = pids.isPlatformNumberHidden() ? 57 * sx : 48 * sx;
-    drawText(ctx, "LCD destination " + set, destination, theme.destination,
+    drawText(ctx, "LCD destination " + set, destination, destinationColor,
         96 * sx, textY, destinationWidth, 9, 1.12 * unit, "left", true);
 
     if(!pids.isPlatformNumberHidden()) {
@@ -120,10 +119,10 @@ function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit,
     }
 }
 
-/** LCD発車標の2段目に、固定テキスト入力と同じ描画関数で編成・停車駅案内を緑表示する。 */
+/** LCD発車標の2段目に編成・停車駅案内を表示する。 */
 function jrhLcdDrawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex, currentTimeMs) {
     let message = jrhLcdGetTrainInfoMessage(arrival, languageIndex, currentTimeMs);
-    let trainInfoTheme = {message: COLOR_GREEN};
+    let trainInfoTheme = {message: theme.stops};
     jrhLcdDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, trainInfoTheme, null);
 }
 
@@ -159,8 +158,7 @@ function jrhLcdGetTrainInfoMessage(arrival, languageIndex, currentTimeMs) {
     if(metadata != null) {
         let previousName = "";
         for(let i = 0; i < metadata.followingStationNames.length; i++) {
-            let name = currentLanguage(
-                metadata.followingStationNames[i], languageIndex);
+            let name = currentLanguage(metadata.followingStationNames[i], languageIndex);
             if(name != "" && name != previousName) {
                 names.push(name);
                 previousName = name;
@@ -180,4 +178,17 @@ function jrhLcdGetTrainInfoMessage(arrival, languageIndex, currentTimeMs) {
         message += "停車駅は" + names.join("・") + "です。";
     }
     return message;
+}
+
+/** LCD発車標の描画状態を初期化する。 */
+function create(ctx, state, pids) {
+}
+
+/** ScriptInputの配色モードでLCD発車標を描画する。 */
+function render(ctx, state, pids) {
+    jrhLcdRender(ctx, state, pids, jrhGetConfiguredTheme());
+}
+
+/** LCD発車標の描画資源を解放する。 */
+function dispose(ctx, state, pids) {
 }
