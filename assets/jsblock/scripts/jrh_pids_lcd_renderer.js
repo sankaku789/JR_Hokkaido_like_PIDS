@@ -123,7 +123,7 @@ function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit,
 /** LCD発車標の2段目に、固定テキスト入力と同じ描画関数で編成・停車駅案内を表示する。 */
 function jrhLcdDrawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex) {
     let message = jrhLcdGetTrainInfoMessage(arrival, languageIndex);
-    let trainInfoTheme = {message: theme.stops};
+    let trainInfoTheme = {message: COLOR_ORANGE};
     jrhLcdDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, trainInfoTheme, null);
 }
 
@@ -177,9 +177,9 @@ function jrhLcdGetTrainInfoMessage(arrival, languageIndex) {
         }
     }
 
-    let message = "この列車は" + carCount + "両です。";
+    let message = "この列車は" + carCount + "両編成です。";
     if(names.length > 0) {
-        message += "停車駅は" + names.join("、") + "。";
+        message += "停車駅は" + names.join("・") + "です。";
     }
     return message;
 }
