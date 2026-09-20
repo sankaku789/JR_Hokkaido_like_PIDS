@@ -5,16 +5,18 @@
       "name": "JR北海道風 3色方式発車標（ホーム向け）",
       "thumbnail": "jsblock:textures/pids.png",
       "scriptFiles": [
-        "jsblock:scripts/jrh_like_pids.js"
+        "jsblock:scripts/jrh_pids_home_renderer.js"
       ],
       "scriptInput": {
         "backgroundColor": "05051F",
+        "fullColorMode": false,
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 700,
         "languageSwitchIntervalMs": 5000,
         "messageMarqueeSecondsPerCharacter": 0.33,
         "delayDisplayEnabled": false,
         "arrivalWarningText": "列車がまいります。",
+        "previousStationDepartureText": "隣の駅を出ました。",
         "outOfServiceText": "回送|Out Of Service",
         "directionText": "発車ご案内 Train Infomation",
         "noTrainText": "調整中"
@@ -25,16 +27,18 @@
       "name": "JR北海道風 フルカラー方式発車標（ホーム向け）",
       "thumbnail": "jsblock:textures/pids_fc.png",
       "scriptFiles": [
-        "jsblock:scripts/jrh_like_pids_fc.js"
+        "jsblock:scripts/jrh_pids_home_renderer.js"
       ],
       "scriptInput": {
         "backgroundColor": "1D2053",
+        "fullColorMode": true,
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 700,
         "languageSwitchIntervalMs": 5000,
         "messageMarqueeSecondsPerCharacter": 0.33,
         "delayDisplayEnabled": false,
         "arrivalWarningText": "列車がまいります。",
+        "previousStationDepartureText": "隣の駅を出ました。",
         "outOfServiceText": "回送|Out Of Service",
         "directionText": "発車ご案内 Train Infomation",
         "noTrainText": "調整中"
@@ -45,10 +49,11 @@
       "name": "JR北海道風 3色方式発車標（コンコース向け）",
       "thumbnail": "jsblock:textures/pids_lcd.png",
       "scriptFiles": [
-        "jsblock:scripts/jrh_like_pids_lcd.js"
+        "jsblock:scripts/jrh_pids_lcd_renderer.js"
       ],
       "scriptInput": {
         "backgroundColor": "05051F",
+        "fullColorMode": false,
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 500,
         "languageSwitchIntervalMs": 5000,
@@ -65,10 +70,11 @@
       "name": "JR北海道風 フルカラー方式発車標（コンコース向け）",
       "thumbnail": "jsblock:textures/pids_lcd_fc.png",
       "scriptFiles": [
-        "jsblock:scripts/jrh_like_pids_lcd_fc.js"
+        "jsblock:scripts/jrh_pids_lcd_renderer.js"
       ],
       "scriptInput": {
         "backgroundColor": "1D2053",
+        "fullColorMode": true,
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 500,
         "languageSwitchIntervalMs": 5000,
