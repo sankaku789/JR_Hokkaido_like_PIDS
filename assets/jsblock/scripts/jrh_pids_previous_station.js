@@ -109,7 +109,9 @@ function jrhGetPreviousStationSnapshot(previousPlatformId, currentTimeMs, refres
     let key = String(previousPlatformId);
     let snapshot = jrhPreviousStationSharedPlatforms[key];
 
-    if(snapshot == null || currentTimeMs >= snapshot.nextRefreshAtMs) {
+    if(snapshot == null ||
+        currentTimeMs >= snapshot.nextRefreshAtMs ||
+        currentTimeMs - snapshot.refreshedAtMs >= refreshIntervalMs) {
         return jrhRefreshPreviousStationSnapshot(
             previousPlatformId, currentTimeMs, refreshIntervalMs);
     }
