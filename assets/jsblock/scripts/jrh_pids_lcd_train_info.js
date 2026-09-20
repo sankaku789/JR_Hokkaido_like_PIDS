@@ -1,17 +1,33 @@
 /* コンコース用2段目の編成・停車駅案内。固定テキスト入力と同じスクロール速度を使う。 */
 
 const jrhLcdOriginalDrawMessageRow = jrhLcdDrawMessageRow;
+const jrhLcdTextWidthCache = {};
 
 /**
- * 固定テキスト入力の描画関数を拡張し、色付きセグメント配列にも対応する。
- * 通常の文字列入力は既存実装をそのまま呼ぶ。
+ * 固定テキスト入力の描画関数を拡張する。
+ * 28文字未満の通常メッセージは既存描画を維持し、
+ * 長文と色付きセグメントは同じ固定速度スクロール処理を使う。
  */
 jrhLcdDrawMessageRow = function(ctx, message, rowY, rowHeight, w, unit, theme, marqueeProgress) {
     if(!(message instanceof Array)) {
-        jrhLcdOriginalDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, theme, marqueeProgress);
+        let text = String(message == null ? "" : message);
+        if(Array.from(text).length < MESSAGE_SCROLL_MIN_CHARS) {
+            jrhLcdOriginalDrawMessageRow(ctx, text, rowY, rowHeight, w, unit, theme, marqueeProgress);
+            return;
+        }
+        jrhLcdDrawFixedScrollMessageRow(
+            ctx,
+            [{text: text, color: theme.message}],
+            rowY,
+            rowHeight,
+            w,
+            unit,
+            marqueeProgress
+        );
         return;
     }
-    jrhLcdDrawSegmentedMessageRow(ctx, message, rowY, rowHeight, w, unit, marqueeProgress);
+
+    jrhLcdDrawFixedScrollMessageRow(ctx, message, rowY, rowHeight, w, unit, marqueeProgress);
 };
 
 /** 編成案内は緑、停車駅案内はオレンジで一続きに表示する。 */
@@ -27,80 +43,77 @@ function jrhLcdDrawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit, theme, 
 }
 
 /**
- * 固定テキスト入力と同じ getMessageMarqueeDuration() を使い、
- * 複数色の各セグメントを1本の文字列として同じ位置・速度でスクロールさせる。
+ * JCMのmarqueeを複数重ねず、1本のスクロール座標で全文を動かす。
+ * getMessageMarqueeDuration() は固定テキスト入力と共通なのでスクロール速度も同じ。
  */
-function jrhLcdDrawSegmentedMessageRow(ctx, segments, rowY, rowHeight, w, unit, marqueeProgress) {
+function jrhLcdDrawFixedScrollMessageRow(ctx, segments, rowY, rowHeight, w, unit, marqueeProgress) {
     let scale = 0.92 * unit;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
-    let viewportWidth = (w - 20) / scale;
+    let viewportX = 6;
+    let viewportWidth = w - 20;
+    let viewportRight = viewportX + viewportWidth;
+    let glyphs = [];
     let fullMessage = "";
-    let widths = [];
-    let totalWidth = 0;
+    let totalTextWidth = 0;
 
     for(let i = 0; i < segments.length; i++) {
         let segmentText = String(segments[i].text == null ? "" : segments[i].text);
-        segments[i].text = segmentText;
+        let color = segments[i].color;
         fullMessage += segmentText;
-        let width = jrhLcdMeasurePidsText(segmentText);
-        widths.push(width);
-        totalWidth += width;
+
+        let chars = Array.from(segmentText);
+        for(let j = 0; j < chars.length; j++) {
+            let charText = chars[j];
+            let charWidth = jrhLcdMeasurePidsText(charText);
+            glyphs.push({
+                text: charText,
+                color: color,
+                width: charWidth
+            });
+            totalTextWidth += charWidth * scale;
+        }
     }
 
-    if(Array.from(fullMessage).length < MESSAGE_SCROLL_MIN_CHARS) {
-        let x = 6;
-        for(let i = 0; i < segments.length; i++) {
-            if(segments[i].text == "") {
-                continue;
-            }
-            createPidsText("LCD train info segment " + i)
-                .text(segments[i].text)
-                .color(segments[i].color)
-                .pos(x, textY)
-                .size(Math.max(widths[i], 1), 9)
-                .scale(scale)
-                .leftAlign()
-                .draw(ctx);
-            x += widths[i] * scale;
-        }
+    if(glyphs.length == 0) {
         return;
     }
 
-    let duration = getMessageMarqueeDuration(fullMessage);
-    let progress = marqueeProgress == null
-        ? jrhLcdGetDefaultMarqueeProgress(duration)
-        : marqueeProgress;
-    let travelWidth = viewportWidth + totalWidth;
-    let prefixWidth = 0;
+    let startX = viewportX;
+    if(Array.from(fullMessage).length >= MESSAGE_SCROLL_MIN_CHARS) {
+        let duration = getMessageMarqueeDuration(fullMessage);
+        let progress = marqueeProgress == null
+            ? jrhLcdGetDefaultMarqueeProgress(duration)
+            : Number(marqueeProgress);
+        if(!isFinite(progress)) {
+            progress = 0;
+        }
+        progress = Math.max(0, Math.min(1, progress));
+        startX = viewportX + viewportWidth - (viewportWidth + totalTextWidth) * progress;
+    }
 
-    for(let i = 0; i < segments.length; i++) {
-        let segmentText = segments[i].text;
-        let segmentWidth = widths[i];
-        if(segmentText == "" || segmentWidth <= 0) {
-            prefixWidth += segmentWidth;
-            continue;
+    let x = startX;
+    for(let i = 0; i < glyphs.length; i++) {
+        let glyph = glyphs[i];
+        let drawnWidth = glyph.width * scale;
+        let glyphRight = x + drawnWidth;
+
+        // 表示領域内に完全に入った文字だけ描画し、左右端からのはみ出しを防ぐ。
+        if(x >= viewportX && glyphRight <= viewportRight) {
+            createPidsText("LCD fixed scroll glyph " + i)
+                .text(glyph.text)
+                .color(glyph.color)
+                .pos(x, textY)
+                .size(Math.max(glyph.width, 1), 9)
+                .scale(scale)
+                .leftAlign()
+                .draw(ctx);
         }
 
-        // JCM marqueeの座標式を逆算し、各色セグメントを連続した1本の文章として配置する。
-        let segmentProgress =
-            (travelWidth * progress - prefixWidth) / (viewportWidth + segmentWidth);
-
-        createPidsText("LCD train info segment " + i)
-            .text(segmentText)
-            .color(segments[i].color)
-            .pos(6, textY)
-            .size(viewportWidth, 9)
-            .scale(scale)
-            .leftAlign()
-            .marquee(duration)
-            .withMarqueeProgress(segmentProgress)
-            .draw(ctx);
-
-        prefixWidth += segmentWidth;
+        x = glyphRight;
     }
 }
 
-/** 固定テキスト入力の通常marqueeと同じゲームtick基準の進行率を返す。 */
+/** 固定テキスト入力と同じゲームtick基準の進行率を返す。 */
 function jrhLcdGetDefaultMarqueeProgress(durationSeconds) {
     let cycleDurationTicks = durationSeconds * 20;
     if(!isFinite(cycleDurationTicks) || cycleDurationTicks <= 0) {
@@ -110,22 +123,29 @@ function jrhLcdGetDefaultMarqueeProgress(durationSeconds) {
     return (gameTick % cycleDurationTicks) / cycleDurationTicks;
 }
 
-/** PIDS用フォントでの文字列幅を取得する。取得できない場合は概算値へフォールバックする。 */
+/** PIDS用フォントでの文字幅を取得し、同じ文字はキャッシュする。 */
 function jrhLcdMeasurePidsText(value) {
     let text = String(value == null ? "" : value);
+    if(jrhLcdTextWidthCache[text] != null) {
+        return jrhLcdTextWidthCache[text];
+    }
+
+    let width = 0;
     try {
         let mutableText = Packages.org.mtr.mapping.mapper.TextHelper.literal(text);
         let style = Packages.org.mtr.mapping.holder.Style.getEmptyMapped()
             .withFont(new Packages.org.mtr.mapping.holder.Identifier(PIDS_FONT));
         mutableText = Packages.org.mtr.mapping.mapper.TextHelper.setStyle(mutableText, style);
-        let width = Number(Packages.org.mtr.mapping.mapper.GraphicsHolder.getTextWidth(mutableText));
-        if(isFinite(width) && width >= 0) {
-            return width;
-        }
+        width = Number(Packages.org.mtr.mapping.mapper.GraphicsHolder.getTextWidth(mutableText));
     } catch(e) {
-        // フォント幅取得が利用できない環境では下の概算へフォールバックする。
+        width = 0;
     }
-    return Array.from(text).length * 8;
+
+    if(!isFinite(width) || width <= 0) {
+        width = /[\x00-\x7F]/.test(text) ? 5 : 8;
+    }
+    jrhLcdTextWidthCache[text] = width;
+    return width;
 }
 
 /** 先発列車の編成案内と、現在駅より先の停車駅案内を作る。 */
