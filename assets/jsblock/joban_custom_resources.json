@@ -15,6 +15,7 @@
         "messageMarqueeSecondsPerCharacter": 0.33,
         "delayDisplayEnabled": false,
         "arrivalWarningText": "列車がまいります。",
+        "previousStationDepartureText": "隣の駅を出ました。",
         "outOfServiceText": "回送|Out Of Service",
         "directionText": "発車ご案内 Train Infomation",
         "noTrainText": "調整中"
@@ -35,6 +36,7 @@
         "messageMarqueeSecondsPerCharacter": 0.33,
         "delayDisplayEnabled": false,
         "arrivalWarningText": "列車がまいります。",
+        "previousStationDepartureText": "隣の駅を出ました。",
         "outOfServiceText": "回送|Out Of Service",
         "directionText": "発車ご案内 Train Infomation",
         "noTrainText": "調整中"
