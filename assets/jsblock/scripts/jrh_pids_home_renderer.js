@@ -63,7 +63,7 @@ function getPreviousStationServiceKey(arrival) {
 
 /** 指定Arrivalについて保存済みの前駅departureTime()と表示状態を返す。 */
 function getPreviousStationDepartureRecord(arrival, state) {
-    if(arrival == null || state.jrhPreviousStationDepartures == null) {
+    if(arrival == null || arrival.terminating() || state.jrhPreviousStationDepartures == null) {
         return null;
     }
     let record = state.jrhPreviousStationDepartures[getPreviousStationServiceKey(arrival)];
@@ -219,7 +219,7 @@ function updatePreviousStationDepartureCache(arrivals, state, currentTimeMs) {
 
     for(let i = 0; i < arrivals.length; i++) {
         let arrival = arrivals[i];
-        if(arrival == null) {
+        if(arrival == null || arrival.terminating()) {
             continue;
         }
 
