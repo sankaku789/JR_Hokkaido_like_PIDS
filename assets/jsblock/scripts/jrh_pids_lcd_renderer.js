@@ -47,7 +47,7 @@ function jrhLcdRender(ctx, state, pids, theme) {
             6, firstTrainRowY + 1, w - 12, 9, 0.92 * unit, "left", true);
     } else {
         jrhLcdDrawArrivalRow(ctx, pids, firstArrival, 0, firstTrainRowY, rowHeight, w, unit, theme, languageIndex, showDelay);
-        jrhLcdDrawStopsRow(ctx, firstArrival, 0, firstStopsRowY, rowHeight, w, unit, theme, 0);
+        jrhLcdDrawStopsRow(ctx, firstArrival, 0, firstStopsRowY, rowHeight, w, unit, theme, 0, currentTimeMs);
     }
 
     for(let trainIndex = 1; trainIndex < 3; trainIndex++) {
@@ -89,7 +89,7 @@ function jrhLcdRender(ctx, state, pids, theme) {
 
 /** 当駅止まりを除外し、発車時刻順の表示対象列車を上限件数まで取得する。 */
 function jrhLcdGetDisplayArrivals(pids, limit) {
-    return getArrivalsByDepartureTime(pids, true).slice(0, limit);
+    return getTopArrivalsByDepartureTime(pids, true, limit);
 }
 
 /** LCD発車標の列車情報1行を描画する。 */
@@ -121,8 +121,8 @@ function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit,
 }
 
 /** LCD発車標の2段目に、固定テキスト入力と同じ描画関数で編成・停車駅案内を緑表示する。 */
-function jrhLcdDrawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex) {
-    let message = jrhLcdGetTrainInfoMessage(arrival, languageIndex);
+function jrhLcdDrawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex, currentTimeMs) {
+    let message = jrhLcdGetTrainInfoMessage(arrival, languageIndex, currentTimeMs);
     let trainInfoTheme = {message: COLOR_GREEN};
     jrhLcdDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, trainInfoTheme, null);
 }
@@ -148,21 +148,19 @@ function jrhLcdDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, theme, mar
 }
 
 /** 先発列車の編成両数と、現在駅より先の停車駅を路線終点まで列挙する。 */
-function jrhLcdGetTrainInfoMessage(arrival, languageIndex) {
+function jrhLcdGetTrainInfoMessage(arrival, languageIndex, currentTimeMs) {
     let carCount = Number(arrival.carCount());
     if(!isFinite(carCount) || carCount < 0) {
         carCount = 0;
     }
 
     let names = [];
-    let route = arrival.route();
-    if(route != null) {
-        let platforms = route.getPlatforms();
-        let currentIndex = route.getPlatformIndex(arrival.platformId());
-        let startIndex = currentIndex < 0 ? 0 : currentIndex + 1;
+    let metadata = jrhGetRoutePlatformMetadata(arrival, currentTimeMs);
+    if(metadata != null) {
         let previousName = "";
-        for(let i = startIndex; i < platforms.size(); i++) {
-            let name = currentLanguage(platforms.get(i).getStationName(), languageIndex);
+        for(let i = 0; i < metadata.followingStationNames.length; i++) {
+            let name = currentLanguage(
+                metadata.followingStationNames[i], languageIndex);
             if(name != "" && name != previousName) {
                 names.push(name);
                 previousName = name;
