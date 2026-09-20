@@ -1,7 +1,7 @@
 /* JR北海道風ホーム発車標の共通renderer。 */
 
 const jrhHomeMessageSwitchIntervalMs = 15000;
-const jrhPreviousStationDepartureText = "隣の駅を出ました。";
+const jrhPreviousStationDepartureDefaultText = "隣の駅を出ました。";
 const jrhPreviousStationBlinkCount = 4;
 const jrhPreviousStationStateKeepMs = 60000;
 
@@ -16,6 +16,9 @@ function jrhHomeRender(ctx, state, pids, theme) {
     const ROW_HEIGHT = 13;
     const ROW_GAP = 4;
     let backgroundColor = parseColor(SCRIPT_INPUT.backgroundColor, theme.defaultBackground);
+    let previousStationDepartureText = SCRIPT_INPUT.previousStationDepartureText == null
+        ? jrhPreviousStationDepartureDefaultText
+        : String(SCRIPT_INPUT.previousStationDepartureText);
     let arrivalWarningSeconds = numberOrDefault(SCRIPT_INPUT.arrivalWarningSeconds, 25);
     let warningBlinkIntervalMs = numberOrDefault(SCRIPT_INPUT.arrivalWarningBlinkIntervalMs, 500);
     let currentTimeMs = new Date().getTime();
@@ -122,7 +125,7 @@ function jrhHomeRender(ctx, state, pids, theme) {
         // 前駅発車表示は短駅間でも最優先し、点滅の非表示時は空欄にする。
         if(row == 1 && previousDepartureMessageActive) {
             if(previousDepartureMessageVisible) {
-                drawText(ctx, "Previous station departure", jrhPreviousStationDepartureText, theme.warning,
+                drawText(ctx, "Previous station departure", previousStationDepartureText, theme.warning,
                     7 * sx, rowY + 2 * sy, 146 * sx, 9, 1.08 * unit, "left", true);
             }
             continue;
