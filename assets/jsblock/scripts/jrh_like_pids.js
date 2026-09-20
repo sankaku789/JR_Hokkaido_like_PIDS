@@ -27,7 +27,6 @@ function create(ctx, state, pids) {
 /** 通常色テーマでホーム発車標を描画する。 */
 function render(ctx, state, pids) {
     jrhHomeRender(ctx, state, pids, jrhHomeTheme);
-    jrhRenderPreviousStationOverlay(ctx, state, pids, jrhHomeTheme);
 }
 
 /** 通常色ホーム発車標の描画資源を解放する（解放処理なし）。 */
