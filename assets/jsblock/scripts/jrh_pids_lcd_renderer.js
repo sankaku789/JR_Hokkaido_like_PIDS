@@ -120,20 +120,20 @@ function jrhLcdDrawArrivalRow(ctx, pids, arrival, set, rowY, rowHeight, w, unit,
     }
 }
 
-/** LCD発車標の停車駅案内行を描画する。 */
+/** LCD発車標の2段目に、編成両数と終点までの停車駅案内を固定サイズでスクロール表示する。 */
 function jrhLcdDrawStopsRow(ctx, arrival, set, rowY, rowHeight, w, unit, theme, languageIndex) {
-    let message = jrhLcdGetCallingPointsMessage(arrival, languageIndex);
+    let message = jrhLcdGetTrainInfoMessage(arrival, languageIndex);
     let scale = 0.78 * unit;
     let viewportWidth = (w - 18) / scale;
     let textY = rowY + Math.max(0.5, (rowHeight - 9 * scale) / 2);
-    createPidsText("LCD calling points " + set)
+    createPidsText("LCD train info " + set)
         .text(message)
         .color(theme.stops)
         .pos(6, textY)
         .size(viewportWidth, 9)
         .scale(scale)
         .leftAlign()
-        .scaleXY()
+        .marquee(getMessageMarqueeDuration(message))
         .draw(ctx);
 }
 
@@ -157,34 +157,39 @@ function jrhLcdDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, theme, mar
     text.draw(ctx);
 }
 
-/** 列車の次停車駅から案内メッセージを組み立てる。 */
-function jrhLcdGetCallingPointsMessage(arrival, languageIndex) {
-    let route = arrival.route();
-    if(route == null) {
-        return currentDestination(arrival, languageIndex) + "に止まります。";
+/** 先発列車の編成両数と、現在駅より先の停車駅を路線終点まで列挙する。 */
+function jrhLcdGetTrainInfoMessage(arrival, languageIndex) {
+    let carCount = Number(arrival.carCount());
+    if(!isFinite(carCount) || carCount < 0) {
+        carCount = 0;
     }
 
-    let platforms = route.getPlatforms();
-    let currentIndex = route.getPlatformIndex(arrival.platformId());
-    let startIndex = currentIndex < 0 ? 0 : currentIndex + 1;
     let names = [];
-    let previousName = "";
-    for(let i = startIndex; i < platforms.size(); i++) {
-        let name = currentLanguage(platforms.get(i).getStationName(), languageIndex);
-        if(name != "" && name != previousName) {
-            names.push(name);
-            previousName = name;
-            if(names.length >= 2) {
-                break;
+    let route = arrival.route();
+    if(route != null) {
+        let platforms = route.getPlatforms();
+        let currentIndex = route.getPlatformIndex(arrival.platformId());
+        let startIndex = currentIndex < 0 ? 0 : currentIndex + 1;
+        let previousName = "";
+        for(let i = startIndex; i < platforms.size(); i++) {
+            let name = currentLanguage(platforms.get(i).getStationName(), languageIndex);
+            if(name != "" && name != previousName) {
+                names.push(name);
+                previousName = name;
             }
         }
     }
 
     if(names.length == 0) {
-        return currentDestination(arrival, languageIndex) + "に止まります。";
+        let destination = currentDestination(arrival, languageIndex);
+        if(destination != "") {
+            names.push(destination);
+        }
     }
-    if(names.length == 1) {
-        return names[0] + "に止まります。";
+
+    let message = "この列車は" + carCount + "両です。";
+    if(names.length > 0) {
+        message += "停車駅は" + names.join("、") + "。";
     }
-    return names.join("、") + "の順に止まります。";
+    return message;
 }
