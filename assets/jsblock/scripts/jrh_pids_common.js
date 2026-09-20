@@ -14,9 +14,33 @@ const MESSAGE_SCROLL_MIN_CHARS = 28;
 const MESSAGE_MARQUEE_VIEWPORT_CHARS = 15;
 const MESSAGE_MARQUEE_SECONDS_PER_CHARACTER = 0.33;
 const JRH_ROUTE_METADATA_CACHE_TTL_MS = 10000;
+const JRH_COMMON_CACHE_CLEANUP_INTERVAL_MS = 60 * 1000;
 
 const jrhRoutePlatformMetadataCache = {};
 const jrhDestinationMatchCache = {};
+let jrhCommonCacheNextCleanupMs = 0;
+
+/** 期限切れの共通metadata cacheを低頻度で破棄する。 */
+function jrhCleanupCommonCaches(currentTimeMs) {
+    if(currentTimeMs < jrhCommonCacheNextCleanupMs) {
+        return;
+    }
+    jrhCommonCacheNextCleanupMs =
+        currentTimeMs + JRH_COMMON_CACHE_CLEANUP_INTERVAL_MS;
+
+    for(let key in jrhRoutePlatformMetadataCache) {
+        let cached = jrhRoutePlatformMetadataCache[key];
+        if(cached == null || currentTimeMs >= cached.expiresAtMs) {
+            delete jrhRoutePlatformMetadataCache[key];
+        }
+    }
+    for(let key in jrhDestinationMatchCache) {
+        let cached = jrhDestinationMatchCache[key];
+        if(cached == null || currentTimeMs >= cached.expiresAtMs) {
+            delete jrhDestinationMatchCache[key];
+        }
+    }
+}
 
 /** PIDS用フォントを設定したテキストオブジェクトを作成する。 */
 function createPidsText(comment) {
@@ -60,6 +84,7 @@ function jrhGetRoutePlatformMetadata(arrival, currentTimeMs) {
     }
 
     let now = currentTimeMs == null ? new Date().getTime() : Number(currentTimeMs);
+    jrhCleanupCommonCaches(now);
     let routeId = String(arrival.routeId());
     let platformId = String(arrival.platformId());
     let key = "r" + routeId + ":p" + platformId;
@@ -112,6 +137,7 @@ function currentDestination(arrival, languageIndex) {
     let routeId = String(arrival.routeId());
     let cacheKey = "r" + routeId + ":d" + destination;
     let currentTimeMs = new Date().getTime();
+    jrhCleanupCommonCaches(currentTimeMs);
     let cached = jrhDestinationMatchCache[cacheKey];
     if(cached != null && currentTimeMs < cached.expiresAtMs) {
         return currentLanguage(cached.value, languageIndex);
