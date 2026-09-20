@@ -13,6 +13,10 @@ const LANGUAGE_SWITCH_INTERVAL_MS = 5000;
 const MESSAGE_SCROLL_MIN_CHARS = 28;
 const MESSAGE_MARQUEE_VIEWPORT_CHARS = 15;
 const MESSAGE_MARQUEE_SECONDS_PER_CHARACTER = 0.33;
+const JRH_ROUTE_METADATA_CACHE_TTL_MS = 10000;
+
+const jrhRoutePlatformMetadataCache = {};
+const jrhDestinationMatchCache = {};
 
 /** PIDS用フォントを設定したテキストオブジェクトを作成する。 */
 function createPidsText(comment) {
@@ -28,31 +32,121 @@ function currentLanguage(value, languageIndex) {
     return parts[languageIndex % parts.length].trim();
 }
 
+/**
+ * MTRのroute ID mapからArrivalのrouteを取得する。
+ * map APIが利用できない環境では従来のArrivalWrapper.route()へフォールバックする。
+ */
+function jrhGetRoute(arrival) {
+    if(arrival == null) {
+        return null;
+    }
+    try {
+        let route = MTRClientData.getInstance().simplifiedRouteIdMap.get(arrival.routeId());
+        if(route != null) {
+            return route;
+        }
+    } catch(e) {
+    }
+    return arrival.route();
+}
+
+/**
+ * route・現在platformから導出できる不変寄りの情報を短時間共有する。
+ * route編集への追従を残すため、一定時間で再構築する。
+ */
+function jrhGetRoutePlatformMetadata(arrival, currentTimeMs) {
+    if(arrival == null) {
+        return null;
+    }
+
+    let now = currentTimeMs == null ? new Date().getTime() : Number(currentTimeMs);
+    let routeId = String(arrival.routeId());
+    let platformId = String(arrival.platformId());
+    let key = "r" + routeId + ":p" + platformId;
+    let cached = jrhRoutePlatformMetadataCache[key];
+    if(cached != null && now < cached.expiresAtMs) {
+        return cached;
+    }
+
+    let route = jrhGetRoute(arrival);
+    if(route == null) {
+        return null;
+    }
+
+    let platforms = route.getPlatforms();
+    let currentIndex = route.getPlatformIndex(arrival.platformId());
+    let previousPlatformId = null;
+    if(currentIndex > 0) {
+        let previousPlatform = platforms.get(currentIndex - 1);
+        if(previousPlatform != null) {
+            previousPlatformId = previousPlatform.getPlatformId();
+        }
+    }
+
+    let followingStationNames = [];
+    let startIndex = currentIndex < 0 ? 0 : currentIndex + 1;
+    for(let i = startIndex; i < platforms.size(); i++) {
+        let platform = platforms.get(i);
+        if(platform != null) {
+            followingStationNames.push(String(platform.getStationName()));
+        }
+    }
+
+    cached = {
+        previousPlatformId: previousPlatformId,
+        followingStationNames: followingStationNames,
+        expiresAtMs: now + JRH_ROUTE_METADATA_CACHE_TTL_MS
+    };
+    jrhRoutePlatformMetadataCache[key] = cached;
+    return cached;
+}
+
 /** route上の駅名から行き先の多言語文字列を補完する。 */
 function currentDestination(arrival, languageIndex) {
     let destinationValue = arrival.destination();
     if(destinationValue == null) {
         return "";
     }
+
     let destination = String(destinationValue).trim();
+    let routeId = String(arrival.routeId());
+    let cacheKey = "r" + routeId + ":d" + destination;
+    let currentTimeMs = new Date().getTime();
+    let cached = jrhDestinationMatchCache[cacheKey];
+    if(cached != null && currentTimeMs < cached.expiresAtMs) {
+        return currentLanguage(cached.value, languageIndex);
+    }
+
     let destinationParts = destination.split("|");
-    let route = arrival.route();
+    for(let i = 0; i < destinationParts.length; i++) {
+        destinationParts[i] = destinationParts[i].trim().toLowerCase();
+    }
+
+    let matchedValue = destination;
+    let route = jrhGetRoute(arrival);
     if(route != null) {
         let platforms = route.getPlatforms();
+        search:
         for(let i = 0; i < platforms.size(); i++) {
             let stationName = String(platforms.get(i).getStationName());
             let parts = stationName.split("|");
             for(let j = 0; j < parts.length; j++) {
                 let normalizedStationName = parts[j].trim().toLowerCase();
                 for(let k = 0; k < destinationParts.length; k++) {
-                    if(destinationParts[k].trim().toLowerCase() == normalizedStationName) {
-                        return currentLanguage(stationName, languageIndex);
+                    if(destinationParts[k] == normalizedStationName) {
+                        matchedValue = stationName;
+                        break search;
                     }
                 }
             }
         }
     }
-    return currentLanguage(destination, languageIndex);
+
+    jrhDestinationMatchCache[cacheKey] = {
+        value: matchedValue,
+        expiresAtMs: currentTimeMs + JRH_ROUTE_METADATA_CACHE_TTL_MS
+    };
+    return currentLanguage(matchedValue, languageIndex);
 }
 
 /** 2分以上遅れている列車では、行き先と遅延時間を交互に返す。 */
@@ -95,6 +189,43 @@ function getArrivalsByDepartureTime(pids, excludeTerminating) {
         result.push(arrival);
     }
     result.sort((a, b) => a.departureTime() - b.departureTime());
+    return result;
+}
+
+/**
+ * 表示に必要な上位件数だけを発車時刻順で取得する。
+ * 同一時刻では元のArrival順を維持し、全件sortを避ける。
+ */
+function getTopArrivalsByDepartureTime(pids, excludeTerminating, limit) {
+    let result = [];
+    if(limit <= 0) {
+        return result;
+    }
+
+    let source = pids.arrivals();
+    for(let i = 0; ; i++) {
+        let arrival = source.get(i);
+        if(arrival == null) {
+            break;
+        }
+        if(excludeTerminating && arrival.terminating()) {
+            continue;
+        }
+
+        let departureTime = Number(arrival.departureTime());
+        let insertAt = result.length;
+        while(insertAt > 0 &&
+            Number(result[insertAt - 1].departureTime()) > departureTime) {
+            insertAt--;
+        }
+
+        if(insertAt < limit) {
+            result.splice(insertAt, 0, arrival);
+            if(result.length > limit) {
+                result.pop();
+            }
+        }
+    }
     return result;
 }
 
