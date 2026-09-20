@@ -3,7 +3,6 @@
 include(Resources.id("jsblock:scripts/jrh_pids_common.js"));
 include(Resources.id("jsblock:scripts/jrh_pids_lcd_renderer.js"));
 include(Resources.id("jsblock:scripts/jrh_pids_display_rules.js"));
-include(Resources.id("jsblock:scripts/jrh_pids_lcd_train_info.js"));
 
 const jrhLcdFcTheme = {
     defaultBackground: 0x1D2053,
