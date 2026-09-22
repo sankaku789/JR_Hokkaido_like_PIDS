@@ -75,6 +75,9 @@ function jrhHomeRender(ctx, state, pids, theme) {
     let showDelay = displayPhase % 4 >= 2;
     let displayArrivals = getTopArrivalsByDepartureTime(pids, false, 2);
     let firstArrival = pids.arrivals().get(0);
+    // 前駅案内は実際に1行目へ描画している列車へ結び付ける。
+    // 接近警告は既存挙動を維持するためpids.arrivals().get(0)のままにする。
+    let previousStationArrival = displayArrivals.length > 0 ? displayArrivals[0] : firstArrival;
     let arrivalNoticeEnabled = !pids.isRowHidden(0);
 
     let trackedArrivals = displayArrivals.slice(0, 2);
@@ -86,6 +89,19 @@ function jrhHomeRender(ctx, state, pids, theme) {
     } catch(e) {
     }
 
+    if(typeof jrhPreviousStationDiag == "function" && previousStationArrival != null && firstArrival != null) {
+        let previousKey = getPreviousStationServiceKey(previousStationArrival);
+        let rawFirstKey = getPreviousStationServiceKey(firstArrival);
+        if(previousKey != rawFirstKey) {
+            jrhPreviousStationDiag(
+                "display-target:" + previousKey,
+                "display-target: previousStation=" + previousKey +
+                " rawFirst=" + rawFirstKey +
+                " route=" + previousStationArrival.routeName() +
+                " departureIndex=" + previousStationArrival.departureIndex());
+        }
+    }
+
     let arrivalWarningDueAt = firstArrival == null
         ? null
         : firstArrival.arrivalTime() - arrivalWarningSeconds * 1000;
@@ -95,7 +111,7 @@ function jrhHomeRender(ctx, state, pids, theme) {
         currentTimeMs >= arrivalWarningDueAt;
     let warningBlinkVisible = Math.floor(currentTimeMs / warningBlinkIntervalMs) % 2 == 0;
 
-    let previousDepartureRecord = getPreviousStationDepartureRecord(firstArrival, state);
+    let previousDepartureRecord = getPreviousStationDepartureRecord(previousStationArrival, state);
     let previousDepartureTime = previousDepartureRecord == null
         ? null : previousDepartureRecord.departureTimeMs;
     let previousDepartureBlinkCycleMs = warningBlinkIntervalMs * 2;
@@ -103,8 +119,8 @@ function jrhHomeRender(ctx, state, pids, theme) {
 
     // 個別render時刻ではなく、次の共通ONサイクル境界から開始して駅内のPIDSを同期する。
     if(arrivalNoticeEnabled &&
-        firstArrival != null &&
-        firstArrival.arrivalTime() > currentTimeMs &&
+        previousStationArrival != null &&
+        previousStationArrival.arrivalTime() > currentTimeMs &&
         previousDepartureRecord != null &&
         previousDepartureTime != null &&
         previousDepartureTime <= currentTimeMs &&
@@ -127,8 +143,8 @@ function jrhHomeRender(ctx, state, pids, theme) {
     }
 
     let previousDepartureMessageActive = arrivalNoticeEnabled &&
-        firstArrival != null &&
-        firstArrival.arrivalTime() > currentTimeMs &&
+        previousStationArrival != null &&
+        previousStationArrival.arrivalTime() > currentTimeMs &&
         previousDepartureRecord != null &&
         previousDepartureTime != null &&
         previousDepartureTime <= currentTimeMs &&
@@ -137,6 +153,19 @@ function jrhHomeRender(ctx, state, pids, theme) {
         !previousDepartureRecord.displayCompleted;
     let previousDepartureMessageVisible = previousDepartureMessageActive &&
         Math.floor(currentTimeMs / warningBlinkIntervalMs) % 2 == 0;
+
+    if(typeof jrhPreviousStationDiag == "function" && previousStationArrival != null && previousDepartureRecord != null) {
+        let previousKey = getPreviousStationServiceKey(previousStationArrival);
+        jrhPreviousStationDiag(
+            "display-state:" + previousKey,
+            "display-state: key=" + previousKey +
+            " active=" + previousDepartureMessageActive +
+            " visible=" + previousDepartureMessageVisible +
+            " arrivalFuture=" + (previousStationArrival.arrivalTime() > currentTimeMs) +
+            " departureTime=" + previousDepartureTime +
+            " started=" + previousDepartureRecord.displayStartedAtMs +
+            " completed=" + previousDepartureRecord.displayCompleted);
+    }
 
     rectangle(ctx, "Navy background", 0, 0, w, h, theme.background);
     rectangle(ctx, "Departure row 1", 5 * sx, HEADER_HEIGHT * sy, 150 * sx, ROW_HEIGHT * sy, COLOR_BLACK);
