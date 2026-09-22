@@ -14,12 +14,33 @@ const jrhPreviousStationHttpMaxCountPerStation = 64;
 let jrhPreviousStationHttpRoutesCache = null;
 let jrhPreviousStationHttpRoutesExpiresAtMs = 0;
 let jrhPreviousStationHttpUnavailableUntilMs = 0;
+let jrhPreviousStationHttpLastFailure = null;
 const jrhPreviousStationHttpStationCache = {};
-const jrhPreviousStationHttpPreviousStationCache = {};
+const jrhPreviousStationHttpRouteLocationCache = {};
+
+function jrhPreviousStationHttpText(value) {
+    return value == null ? "" : String(value);
+}
 
 function jrhPreviousStationHttpDimension() {
     let value = Number(SCRIPT_INPUT.previousStationHttpDimension);
     return isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+}
+
+function jrhPreviousStationHttpLogFailure(message) {
+    let text = String(message);
+    if(jrhPreviousStationHttpLastFailure == text) {
+        return;
+    }
+    jrhPreviousStationHttpLastFailure = text;
+    try {
+        console.warn("[JRHPIDS previous-station] " + text);
+    } catch(e) {
+    }
+}
+
+function jrhPreviousStationHttpClearFailure() {
+    jrhPreviousStationHttpLastFailure = null;
 }
 
 function jrhPreviousStationHttpLocalPort() {
@@ -27,6 +48,7 @@ function jrhPreviousStationHttpLocalPort() {
         let port = Number(Packages.org.mtr.mod.InitClient.getServerPort());
         return isFinite(port) && port > 0 ? Math.floor(port) : 0;
     } catch(e) {
+        jrhPreviousStationHttpLogFailure("core-http: MTR local webserver port is unavailable: " + e);
         return 0;
     }
 }
@@ -37,12 +59,18 @@ function jrhPreviousStationHttpBaseUrl() {
 }
 
 function jrhPreviousStationHttpRequest(path, body, currentTimeMs) {
-    if(currentTimeMs < jrhPreviousStationHttpUnavailableUntilMs || typeof Networking == "undefined") {
+    if(currentTimeMs < jrhPreviousStationHttpUnavailableUntilMs) {
+        return null;
+    }
+    if(typeof Networking == "undefined") {
+        jrhPreviousStationHttpLogFailure("core-http: JCM Networking API is unavailable");
+        jrhPreviousStationHttpUnavailableUntilMs = currentTimeMs + jrhPreviousStationHttpFailureRetryMs;
         return null;
     }
 
     let baseUrl = jrhPreviousStationHttpBaseUrl();
     if(baseUrl == null) {
+        jrhPreviousStationHttpLogFailure("core-http: MTR local webserver is not running");
         jrhPreviousStationHttpUnavailableUntilMs = currentTimeMs + jrhPreviousStationHttpFailureRetryMs;
         return null;
     }
@@ -62,26 +90,42 @@ function jrhPreviousStationHttpRequest(path, body, currentTimeMs) {
         }
 
         let response = Networking.fetch(baseUrl + path, request);
-        if(response == null || !response.ok() || response.getData() == null) {
+        if(response == null) {
+            jrhPreviousStationHttpLogFailure("core-http: empty Networking response for " + path);
+            jrhPreviousStationHttpUnavailableUntilMs = currentTimeMs + jrhPreviousStationHttpFailureRetryMs;
+            return null;
+        }
+        if(!response.ok() || response.getData() == null) {
+            let code = -1;
+            try {
+                code = Number(response.getResponseCode());
+            } catch(e) {
+            }
+            jrhPreviousStationHttpLogFailure("core-http: request failed (status=" + code + ") for " + path);
             jrhPreviousStationHttpUnavailableUntilMs = currentTimeMs + jrhPreviousStationHttpFailureRetryMs;
             return null;
         }
 
         let text = response.getData().asString();
         if(text == null || String(text).trim() == "") {
+            jrhPreviousStationHttpLogFailure("core-http: empty response body for " + path);
             jrhPreviousStationHttpUnavailableUntilMs = currentTimeMs + jrhPreviousStationHttpFailureRetryMs;
             return null;
         }
 
         let envelope = JSON.parse(String(text));
         if(envelope == null || Number(envelope.status) != 200 || envelope.data == null) {
+            let status = envelope == null ? "null" : String(envelope.status);
+            jrhPreviousStationHttpLogFailure("core-http: invalid API envelope (status=" + status + ") for " + path);
             jrhPreviousStationHttpUnavailableUntilMs = currentTimeMs + jrhPreviousStationHttpFailureRetryMs;
             return null;
         }
 
         jrhPreviousStationHttpUnavailableUntilMs = 0;
+        jrhPreviousStationHttpClearFailure();
         return envelope.data;
     } catch(e) {
+        jrhPreviousStationHttpLogFailure("core-http: exception for " + path + ": " + e);
         jrhPreviousStationHttpUnavailableUntilMs = currentTimeMs + jrhPreviousStationHttpFailureRetryMs;
         return null;
     }
@@ -116,26 +160,49 @@ function jrhPreviousStationHttpCurrentStationHex(arrival) {
     return null;
 }
 
-function jrhPreviousStationHttpRouteMatches(httpRoute, arrival) {
+function jrhPreviousStationHttpRouteExactMatch(httpRoute, arrival) {
     if(httpRoute == null) {
         return false;
     }
-    return String(httpRoute.name) == String(arrival.routeName()) &&
+    return jrhPreviousStationHttpText(httpRoute.name) == jrhPreviousStationHttpText(arrival.routeName()) &&
         Number(httpRoute.color) == Number(arrival.routeColor()) &&
-        String(httpRoute.number) == String(arrival.routeNumber());
+        jrhPreviousStationHttpText(httpRoute.number) == jrhPreviousStationHttpText(arrival.routeNumber());
 }
 
-/** HTTPのroute情報から前駅stationの正確なhex IDを求める。 */
-function jrhPreviousStationHttpPreviousStationHex(arrival, currentTimeMs) {
-    let currentStationHex = jrhPreviousStationHttpCurrentStationHex(arrival);
-    if(currentStationHex == null) {
-        return null;
+function jrhPreviousStationHttpRouteLooseMatch(httpRoute, arrival) {
+    if(httpRoute == null) {
+        return false;
+    }
+    return jrhPreviousStationHttpText(httpRoute.name) == jrhPreviousStationHttpText(arrival.routeName()) &&
+        Number(httpRoute.color) == Number(arrival.routeColor());
+}
+
+/**
+ * JCM側SimplifiedRouteの現在platform indexを基準に、Core HTTP route上の現在駅と前駅を特定する。
+ * 64bit route/platform IDをJSON Numberへ変換して照合しない。
+ */
+function jrhPreviousStationHttpResolveRouteLocation(arrival, currentTimeMs) {
+    let cacheKey = String(arrival.routeId()) + ":" + String(arrival.platformId());
+    let cached = jrhPreviousStationHttpRouteLocationCache[cacheKey];
+    if(cached != null && currentTimeMs < cached.expiresAtMs) {
+        return cached.value;
     }
 
-    let cacheKey = String(arrival.routeId()) + ":" + String(arrival.platformId());
-    let cached = jrhPreviousStationHttpPreviousStationCache[cacheKey];
-    if(cached != null && cached.currentStationHex == currentStationHex) {
-        return cached.previousStationHex;
+    let clientRoute = null;
+    let currentIndex = -1;
+    try {
+        clientRoute = arrival.route();
+        if(clientRoute != null) {
+            currentIndex = Number(clientRoute.getPlatformIndex(arrival.platformId()));
+        }
+    } catch(e) {
+    }
+    if(clientRoute == null || !isFinite(currentIndex) || currentIndex <= 0) {
+        jrhPreviousStationHttpRouteLocationCache[cacheKey] = {
+            value: null,
+            expiresAtMs: currentTimeMs + 5000
+        };
+        return null;
     }
 
     let routes = jrhPreviousStationHttpGetRoutes(currentTimeMs);
@@ -143,42 +210,83 @@ function jrhPreviousStationHttpPreviousStationHex(arrival, currentTimeMs) {
         return null;
     }
 
-    let currentPlatformName = String(arrival.platformName());
+    let currentStationHex = jrhPreviousStationHttpCurrentStationHex(arrival);
+    let currentPlatformName = jrhPreviousStationHttpText(arrival.platformName());
+    let exactCandidates = [];
+    let looseCandidates = [];
     for(let i = 0; i < routes.length; i++) {
         let route = routes[i];
-        if(!jrhPreviousStationHttpRouteMatches(route, arrival) || route.stations == null) {
+        if(route == null || route.stations == null || route.stations.length <= currentIndex) {
             continue;
         }
-
-        let fallbackIndex = -1;
-        for(let j = 0; j < route.stations.length; j++) {
-            let station = route.stations[j];
-            if(station == null || String(station.id) != currentStationHex) {
-                continue;
-            }
-            if(fallbackIndex < 0) {
-                fallbackIndex = j;
-            }
-            if(String(station.name) == currentPlatformName) {
-                fallbackIndex = j;
-                break;
-            }
+        if(jrhPreviousStationHttpRouteExactMatch(route, arrival)) {
+            exactCandidates.push(route);
+        } else if(jrhPreviousStationHttpRouteLooseMatch(route, arrival)) {
+            looseCandidates.push(route);
         }
+    }
+    let candidates = exactCandidates.length > 0 ? exactCandidates : looseCandidates;
 
-        if(fallbackIndex > 0) {
-            let previousStation = route.stations[fallbackIndex - 1];
-            if(previousStation != null && previousStation.id != null) {
-                let previousStationHex = String(previousStation.id);
-                jrhPreviousStationHttpPreviousStationCache[cacheKey] = {
-                    currentStationHex: currentStationHex,
-                    previousStationHex: previousStationHex
-                };
-                return previousStationHex;
+    let selectedRoute = null;
+    let selectedIndex = currentIndex;
+
+    // まずCore routeの同じindexが現在station/platformと一致する候補を選ぶ。
+    for(let i = 0; i < candidates.length; i++) {
+        let route = candidates[i];
+        let station = route.stations[currentIndex];
+        if(station == null) {
+            continue;
+        }
+        let stationIdMatches = currentStationHex != null && jrhPreviousStationHttpText(station.id) == currentStationHex;
+        let platformNameMatches = currentPlatformName != "" && jrhPreviousStationHttpText(station.name) == currentPlatformName;
+        if(stationIdMatches || platformNameMatches) {
+            selectedRoute = route;
+            break;
+        }
+    }
+
+    // index対応で決まらない場合はstation hexから現在位置を探索する。
+    if(selectedRoute == null && currentStationHex != null) {
+        searchByStation:
+        for(let i = 0; i < candidates.length; i++) {
+            let route = candidates[i];
+            for(let j = 1; j < route.stations.length; j++) {
+                let station = route.stations[j];
+                if(station != null && jrhPreviousStationHttpText(station.id) == currentStationHex) {
+                    selectedRoute = route;
+                    selectedIndex = j;
+                    break searchByStation;
+                }
             }
         }
     }
 
-    return null;
+    // route属性で一意なら、SimplifiedRouteとCore routeの停車順が同じことを利用する。
+    if(selectedRoute == null && candidates.length == 1) {
+        selectedRoute = candidates[0];
+        selectedIndex = currentIndex;
+    }
+
+    let result = null;
+    if(selectedRoute != null && selectedIndex > 0 && selectedIndex < selectedRoute.stations.length) {
+        let previousStation = selectedRoute.stations[selectedIndex - 1];
+        let currentStation = selectedRoute.stations[selectedIndex];
+        if(previousStation != null && previousStation.id != null) {
+            result = {
+                routeHex: selectedRoute.id == null ? null : String(selectedRoute.id),
+                previousStationHex: String(previousStation.id),
+                previousPlatformName: jrhPreviousStationHttpText(previousStation.name),
+                currentStationHex: currentStation == null || currentStation.id == null ? null : String(currentStation.id),
+                currentIndex: selectedIndex
+            };
+        }
+    }
+
+    jrhPreviousStationHttpRouteLocationCache[cacheKey] = {
+        value: result,
+        expiresAtMs: currentTimeMs + (result == null ? 5000 : jrhPreviousStationHttpRouteCacheTtlMs)
+    };
+    return result;
 }
 
 function jrhPreviousStationHttpGetStationArrivals(stationHex, currentTimeMs) {
@@ -207,6 +315,7 @@ function jrhPreviousStationHttpGetStationArrivals(stationHex, currentTimeMs) {
         nextRefreshAtMs: fetchedAtMs + jrhPreviousStationHttpArrivalRefreshMs
     };
     if(!isFinite(snapshot.currentTime)) {
+        jrhPreviousStationHttpLogFailure("core-http: arrivals response has invalid currentTime");
         return null;
     }
 
@@ -214,15 +323,14 @@ function jrhPreviousStationHttpGetStationArrivals(stationHex, currentTimeMs) {
     return snapshot;
 }
 
-function jrhPreviousStationHttpFindSameService(snapshot, arrival) {
+function jrhPreviousStationHttpFindSameService(snapshot, arrival, expectedPlatformName) {
     if(snapshot == null || snapshot.arrivals == null) {
         return null;
     }
 
-    let routeId = Number(arrival.routeId());
     let departureIndex = Number(arrival.departureIndex());
-    let routeName = String(arrival.routeName());
-    let routeNumber = String(arrival.routeNumber());
+    let routeName = jrhPreviousStationHttpText(arrival.routeName());
+    let routeNumber = jrhPreviousStationHttpText(arrival.routeNumber());
     let routeColor = Number(arrival.routeColor());
     let carCount = Number(arrival.carCount());
 
@@ -231,12 +339,19 @@ function jrhPreviousStationHttpFindSameService(snapshot, arrival) {
         if(candidate == null || candidate.realtime !== true) {
             continue;
         }
-        if(Number(candidate.routeId) != routeId || Number(candidate.departureIndex) != departureIndex) {
+        if(Number(candidate.departureIndex) != departureIndex) {
             continue;
         }
-        if(String(candidate.routeName) != routeName ||
-            String(candidate.routeNumber) != routeNumber ||
+        if(jrhPreviousStationHttpText(candidate.routeName) != routeName ||
             Number(candidate.routeColor) != routeColor) {
+            continue;
+        }
+        let candidateRouteNumber = jrhPreviousStationHttpText(candidate.routeNumber);
+        if(routeNumber != "" && candidateRouteNumber != "" && candidateRouteNumber != routeNumber) {
+            continue;
+        }
+        if(expectedPlatformName != null && expectedPlatformName != "" &&
+            jrhPreviousStationHttpText(candidate.platformName) != expectedPlatformName) {
             continue;
         }
         if(carCount > 0 && candidate.cars != null && candidate.cars.length > 0 && candidate.cars.length != carCount) {
@@ -305,19 +420,26 @@ updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
             continue;
         }
 
-        let previousStationHex = jrhPreviousStationHttpPreviousStationHex(arrival, currentTimeMs);
-        if(previousStationHex == null) {
-            jrhPreviousStationDebug(state, key, "core-http: previous station unavailable");
+        let routeLocation = jrhPreviousStationHttpResolveRouteLocation(arrival, currentTimeMs);
+        if(routeLocation == null || routeLocation.previousStationHex == null) {
+            record.source = "core-http-route-unresolved";
+            jrhPreviousStationDebug(state, key,
+                "core-http: route location unresolved: route=" + arrival.routeId() +
+                " platform=" + arrival.platformId() +
+                " platformName=" + arrival.platformName());
             continue;
         }
 
-        let snapshot = jrhPreviousStationHttpGetStationArrivals(previousStationHex, currentTimeMs);
+        let snapshot = jrhPreviousStationHttpGetStationArrivals(routeLocation.previousStationHex, currentTimeMs);
         if(snapshot == null) {
-            jrhPreviousStationDebug(state, key, "core-http: unavailable");
+            record.source = "core-http-unavailable";
+            jrhPreviousStationDebug(state, key,
+                "core-http: arrivals unavailable: previousStation=" + routeLocation.previousStationHex);
             continue;
         }
 
-        let match = jrhPreviousStationHttpFindSameService(snapshot, arrival);
+        let match = jrhPreviousStationHttpFindSameService(
+            snapshot, arrival, routeLocation.previousPlatformName);
         if(match != null) {
             let departureTimeMs = jrhPreviousStationHttpToLocalTime(match.departure, snapshot);
             if(departureTimeMs != null) {
@@ -327,13 +449,17 @@ updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
                 record.lastHttpSeenAtMs = snapshot.fetchedAtMs;
                 record.source = "core-http-tracking";
                 jrhPreviousStationDebug(state, key,
-                    "core-http tracking: route=" + arrival.routeId() +
-                    " departureIndex=" + arrival.departureIndex() +
-                    " previousStation=" + previousStationHex +
+                    "core-http tracking: departureIndex=" + arrival.departureIndex() +
+                    " previousStation=" + routeLocation.previousStationHex +
+                    " previousPlatform=" + routeLocation.previousPlatformName +
                     " departureTime=" + departureTimeMs);
             }
             continue;
         }
+
+        record.source = record.lastHttpSeenAtMs == null
+            ? "core-http-waiting-first-observation"
+            : "core-http-waiting-departure-confirmation";
 
         // 直前までHTTPで同一便をrealtime追跡できており、予測発車時刻を過ぎた後の
         // 新しいHTTPスナップショットから列車が消えた場合だけ「前駅発車済み」を確定する。
@@ -345,9 +471,15 @@ updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
             record.departureLocked = true;
             record.source = "core-http-departed";
             jrhPreviousStationDebug(state, key,
-                "core-http departed: route=" + arrival.routeId() +
-                " departureIndex=" + arrival.departureIndex() +
-                " previousStation=" + previousStationHex);
+                "core-http departed: departureIndex=" + arrival.departureIndex() +
+                " previousStation=" + routeLocation.previousStationHex +
+                " previousPlatform=" + routeLocation.previousPlatformName);
+        } else if(record.lastHttpSeenAtMs == null) {
+            jrhPreviousStationDebug(state, key,
+                "core-http: waiting for realtime service at previous station: departureIndex=" +
+                arrival.departureIndex() + " previousStation=" + routeLocation.previousStationHex +
+                " previousPlatform=" + routeLocation.previousPlatformName +
+                " candidates=" + snapshot.arrivals.length);
         }
     }
 
