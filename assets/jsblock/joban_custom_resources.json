@@ -7,9 +7,7 @@
       "scriptFiles": [
         "jsblock:scripts/jrh_pids_home_renderer.js",
         "jsblock:scripts/jrh_pids_previous_station_http.js",
-        "jsblock:scripts/jrh_pids_previous_station_http_compat.js",
-        "jsblock:scripts/jrh_pids_previous_station_http_async.js",
-        "jsblock:scripts/jrh_pids_previous_station_http_async_route_fix.js"
+        "jsblock:scripts/jrh_pids_previous_station_http_async.js"
       ],
       "scriptInput": {
         "backgroundColor": "05051F",
@@ -34,9 +32,7 @@
       "scriptFiles": [
         "jsblock:scripts/jrh_pids_home_renderer.js",
         "jsblock:scripts/jrh_pids_previous_station_http.js",
-        "jsblock:scripts/jrh_pids_previous_station_http_compat.js",
-        "jsblock:scripts/jrh_pids_previous_station_http_async.js",
-        "jsblock:scripts/jrh_pids_previous_station_http_async_route_fix.js"
+        "jsblock:scripts/jrh_pids_previous_station_http_async.js"
       ],
       "scriptInput": {
         "backgroundColor": "1D2053",
