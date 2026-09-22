@@ -4,6 +4,45 @@
  * 新しいCoreの{status,text,data} envelope形式と両方を受理する。
  */
 
+const jrhPreviousStationHttpCompatDiagLast = new Packages.java.util.concurrent.ConcurrentHashMap();
+
+function jrhPreviousStationHttpCompatDiag(key, message) {
+    try {
+        let text = String(message);
+        let previous = jrhPreviousStationHttpCompatDiagLast.put(String(key), text);
+        if(previous == null || String(previous) != text) {
+            console.warn("[JRHPIDS previous-station http] " + text);
+        }
+    } catch(e) {
+    }
+}
+
+function jrhPreviousStationHttpCompatDescribe(value) {
+    try {
+        if(value == null) return "null";
+        if(Array.isArray(value)) return "array(length=" + value.length + ")";
+        if(typeof value != "object") return typeof value + "(" + String(value) + ")";
+        let keys = Object.keys(value);
+        let parts = [];
+        for(let i = 0; i < keys.length && i < 20; i++) {
+            let key = keys[i];
+            let child = value[key];
+            if(Array.isArray(child)) {
+                parts.push(key + "[]=len" + child.length);
+            } else if(child != null && typeof child == "object") {
+                parts.push(key + "={" + Object.keys(child).slice(0, 8).join(",") + "}");
+            } else {
+                let childText = String(child);
+                if(childText.length > 80) childText = childText.substring(0, 80) + "...";
+                parts.push(key + "=" + childText);
+            }
+        }
+        return "object{" + parts.join(";") + "}";
+    } catch(e) {
+        return "describe-error=" + e;
+    }
+}
+
 jrhPreviousStationHttpRequest = function(path, body, currentTimeMs) {
     if(currentTimeMs < jrhPreviousStationHttpUnavailableUntilMs) {
         return null;
@@ -67,6 +106,10 @@ jrhPreviousStationHttpRequest = function(path, body, currentTimeMs) {
             return null;
         }
 
+        jrhPreviousStationHttpCompatDiag(
+            "raw:" + path,
+            "response path=" + path + " raw=" + jrhPreviousStationHttpCompatDescribe(parsed));
+
         let data = null;
         if(parsed.status != null) {
             // 新しいCore: {status, text, data}
@@ -77,10 +120,21 @@ jrhPreviousStationHttpRequest = function(path, body, currentTimeMs) {
                 return null;
             }
             data = parsed.data;
+        } else if(parsed.data != null && parsed.routes == null && parsed.arrivals == null) {
+            // 一部のMTRローカルプロキシ/旧Coreでstatusなしdata wrapperになっている場合。
+            data = parsed.data;
+            jrhPreviousStationHttpCompatDiag(
+                "unwrap:" + path,
+                "response path=" + path + " using status-less data wrapper: " +
+                jrhPreviousStationHttpCompatDescribe(data));
         } else {
             // MTR 4.0.5系: endpoint payloadが直接返る。
             data = parsed;
         }
+
+        jrhPreviousStationHttpCompatDiag(
+            "data:" + path,
+            "response path=" + path + " data=" + jrhPreviousStationHttpCompatDescribe(data));
 
         jrhPreviousStationHttpUnavailableUntilMs = 0;
         jrhPreviousStationHttpClearFailure();
