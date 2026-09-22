@@ -5,13 +5,15 @@
       "name": "JR北海道風 3色方式発車標（ホーム向け）",
       "thumbnail": "jsblock:textures/pids.png",
       "scriptFiles": [
-        "jsblock:scripts/jrh_pids_home_renderer.js"
+        "jsblock:scripts/jrh_pids_home_renderer.js",
+        "jsblock:scripts/jrh_pids_previous_station_estimator.js"
       ],
       "scriptInput": {
         "backgroundColor": "05051F",
         "fullColorMode": false,
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 700,
+        "previousStationFallbackSeconds": 60,
         "languageSwitchIntervalMs": 5000,
         "messageMarqueeSecondsPerCharacter": 0.33,
         "delayDisplayEnabled": false,
@@ -27,13 +29,15 @@
       "name": "JR北海道風 フルカラー方式発車標（ホーム向け）",
       "thumbnail": "jsblock:textures/pids_fc.png",
       "scriptFiles": [
-        "jsblock:scripts/jrh_pids_home_renderer.js"
+        "jsblock:scripts/jrh_pids_home_renderer.js",
+        "jsblock:scripts/jrh_pids_previous_station_estimator.js"
       ],
       "scriptInput": {
         "backgroundColor": "1D2053",
         "fullColorMode": true,
         "arrivalWarningSeconds": 25,
         "arrivalWarningBlinkIntervalMs": 700,
+        "previousStationFallbackSeconds": 60,
         "languageSwitchIntervalMs": 5000,
         "messageMarqueeSecondsPerCharacter": 0.33,
         "delayDisplayEnabled": false,
