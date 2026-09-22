@@ -280,6 +280,7 @@ updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
         if(record == null) {
             record = {
                 departureTimeMs: null,
+                trackedDepartureTimeMs: null,
                 departureLocked: false,
                 displayStartedAtMs: null,
                 displayCompleted: false,
@@ -288,6 +289,15 @@ updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
                 lastHttpSeenAtMs: null
             };
             store[key] = record;
+        } else if(record.source == null || String(record.source).indexOf("core-http") != 0) {
+            // 旧推定実装の状態が残っていても、HTTP確認なしで表示しない。
+            record.departureTimeMs = null;
+            record.trackedDepartureTimeMs = null;
+            record.departureLocked = false;
+            record.displayStartedAtMs = null;
+            record.displayCompleted = false;
+            record.source = null;
+            record.lastHttpSeenAtMs = null;
         }
         record.lastSeenAtMs = currentTimeMs;
 
@@ -311,9 +321,11 @@ updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
         if(match != null) {
             let departureTimeMs = jrhPreviousStationHttpToLocalTime(match.departure, snapshot);
             if(departureTimeMs != null) {
-                record.departureTimeMs = departureTimeMs;
+                // 追跡中の予測時刻は表示判定へ渡さない。Coreで発車後の消失を確認して初めて確定する。
+                record.departureTimeMs = null;
+                record.trackedDepartureTimeMs = departureTimeMs;
                 record.lastHttpSeenAtMs = snapshot.fetchedAtMs;
-                record.source = "core-http";
+                record.source = "core-http-tracking";
                 jrhPreviousStationDebug(state, key,
                     "core-http tracking: route=" + arrival.routeId() +
                     " departureIndex=" + arrival.departureIndex() +
@@ -325,10 +337,11 @@ updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
 
         // 直前までHTTPで同一便をrealtime追跡できており、予測発車時刻を過ぎた後の
         // 新しいHTTPスナップショットから列車が消えた場合だけ「前駅発車済み」を確定する。
-        if(record.departureTimeMs != null &&
+        if(record.trackedDepartureTimeMs != null &&
             record.lastHttpSeenAtMs != null &&
             snapshot.fetchedAtMs > record.lastHttpSeenAtMs &&
-            snapshot.fetchedAtMs >= record.departureTimeMs) {
+            snapshot.fetchedAtMs >= record.trackedDepartureTimeMs) {
+            record.departureTimeMs = record.trackedDepartureTimeMs;
             record.departureLocked = true;
             record.source = "core-http-departed";
             jrhPreviousStationDebug(state, key,
