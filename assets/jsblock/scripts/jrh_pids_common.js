@@ -14,11 +14,17 @@ const MESSAGE_MARQUEE_VIEWPORT_CHARS = 15;
 const MESSAGE_MARQUEE_SECONDS_PER_CHARACTER = 0.33;
 const JRH_ROUTE_METADATA_CACHE_TTL_MS = 10000;
 const JRH_COMMON_CACHE_CLEANUP_INTERVAL_MS = 60 * 1000;
+const jrhPreviousStationStateKeepMs = 60 * 1000;
 
 const jrhRoutePlatformMetadataCache = {};
 const jrhDestinationMatchCache = {};
 let jrhCommonCacheNextCleanupMs = 0;
 let jrhConfiguredTheme = null;
+
+/** nullを空文字へ正規化する。 */
+function jrhText(value) {
+    return value == null ? "" : String(value);
+}
 
 /** 期限切れの共通metadata cacheを低頻度で破棄する。 */
 function jrhCleanupCommonCaches(currentTimeMs) {
@@ -112,6 +118,83 @@ function currentLanguage(value, languageIndex) {
     }
     let parts = String(value).split("|");
     return parts[languageIndex % parts.length].trim();
+}
+
+/** 前駅案内の診断ログを同一PIDS state内で重複抑制する。 */
+function jrhPreviousStationDebug(state, key, message) {
+    if(state.jrhPreviousStationDebug == null) {
+        state.jrhPreviousStationDebug = {};
+    }
+    if(state.jrhPreviousStationDebug[key] == message) {
+        return;
+    }
+    state.jrhPreviousStationDebug[key] = message;
+    console.debug("[JRHPIDS previous-station] " + message);
+}
+
+/** 前駅発車時刻と表示状態を保持するPIDSインスタンスstateを返す。 */
+function getPreviousStationDepartureStore(state) {
+    if(state.jrhPreviousStationDepartures == null) {
+        state.jrhPreviousStationDepartures = {};
+    }
+    return state.jrhPreviousStationDepartures;
+}
+
+/** Arrivalの補正時刻を含めず、同じ便を継続追跡するキーを作る。 */
+function getPreviousStationServiceKey(arrival) {
+    return String(arrival.departureIndex()) + ":" +
+        String(arrival.routeId()) + ":" +
+        String(arrival.platformId()) + ":" +
+        String(arrival.carCount());
+}
+
+/** 指定Arrivalの保存済み前駅発車状態を返す。 */
+function getPreviousStationDepartureRecord(arrival, state) {
+    if(arrival == null || arrival.terminating() || state.jrhPreviousStationDepartures == null) {
+        return null;
+    }
+    let record = state.jrhPreviousStationDepartures[getPreviousStationServiceKey(arrival)];
+    return record == null ? null : record;
+}
+
+/** 指定Arrivalの前駅発車状態を取得し、未作成なら初期化する。 */
+function jrhGetOrCreatePreviousStationDepartureRecord(arrival, state, currentTimeMs) {
+    let store = getPreviousStationDepartureStore(state);
+    let key = getPreviousStationServiceKey(arrival);
+    let record = store[key];
+    if(record == null) {
+        record = {
+            departureTimeMs: null,
+            trackedDepartureTimeMs: null,
+            departureLocked: false,
+            displayStartedAtMs: null,
+            displayCompleted: false,
+            source: null,
+            lastSeenAtMs: currentTimeMs,
+            lastHttpSeenAtMs: null
+        };
+        store[key] = record;
+    }
+    record.lastSeenAtMs = currentTimeMs;
+    return record;
+}
+
+/** 前駅案内stateから長時間見えていない便を除去する。 */
+function jrhCleanupPreviousStationDepartureStore(state, currentTimeMs) {
+    let store = getPreviousStationDepartureStore(state);
+    for(let key in store) {
+        let record = store[key];
+        if(record == null || currentTimeMs - record.lastSeenAtMs > jrhPreviousStationStateKeepMs) {
+            delete store[key];
+            if(state.jrhPreviousStationDebug != null) {
+                delete state.jrhPreviousStationDebug[key];
+            }
+        }
+    }
+}
+
+/** 前駅判定スクリプトが無い場合は案内だけを無効化するfail-safe。 */
+function updatePreviousStationDepartureCache(arrivals, state, currentTimeMs) {
 }
 
 /** MTRのroute ID mapからArrivalのrouteを取得する。 */
