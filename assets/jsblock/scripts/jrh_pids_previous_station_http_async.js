@@ -1,73 +1,110 @@
-/* JR北海道風ホーム発車標 前駅発車判定 - 非同期HTTPブリッジ。
+/* JR北海道風ホーム発車標 前駅発車判定 - 非同期Core HTTP。
  *
- * Networking.fetch() をPIDS render用script worker上では実行しない。
- * HTTPはJCMのBackgroundWorkerへ投げ、render側はConcurrentHashMapに保存された
- * 直近スナップショットだけを読む。これによりHTTP待ちが点滅・描画更新を止めない。
+ * Networking.fetch()はPIDS render用script worker上で実行しない。
+ * HTTPはJCMのBackgroundWorkerへ投げ、render側はConcurrentHashMapの直近結果だけを読む。
  */
 
 const jrhPreviousStationAsyncResults = new Packages.java.util.concurrent.ConcurrentHashMap();
 const jrhPreviousStationAsyncInFlight = new Packages.java.util.concurrent.ConcurrentHashMap();
+const jrhPreviousStationDiagLast = new Packages.java.util.concurrent.ConcurrentHashMap();
 const jrhPreviousStationAsyncNextRequestAt = {};
 
+function jrhPreviousStationDiag(key, message) {
+    try {
+        let text = String(message);
+        let previous = jrhPreviousStationDiagLast.put(String(key), text);
+        if(previous == null || String(previous) != text) {
+            console.warn("[JRHPIDS previous-station diag] " + text);
+        }
+    } catch(e) {
+    }
+}
+
+function jrhPreviousStationAsyncHttpRouteNumber(route) {
+    if(route == null) {
+        return "";
+    }
+    if(route.routeNumber != null) {
+        return jrhText(route.routeNumber);
+    }
+    if(route.number != null) {
+        return jrhText(route.number);
+    }
+    return "";
+}
+
+/** render worker上でArrivalからimmutableな検索条件だけを抜き出す。 */
 function jrhPreviousStationAsyncSnapshot(arrival) {
     let route = null;
     let currentIndex = -1;
-    let currentStationName = "";
     try {
         route = arrival.route();
         if(route != null) {
             currentIndex = Number(route.getPlatformIndex(arrival.platformId()));
-            if(isFinite(currentIndex) && currentIndex >= 0) {
-                let routePlatforms = route.getPlatforms();
-                if(routePlatforms != null && currentIndex < routePlatforms.size()) {
-                    let routePlatform = routePlatforms.get(currentIndex);
-                    if(routePlatform != null) {
-                        currentStationName = jrhPreviousStationHttpText(routePlatform.getStationName());
-                    }
-                }
-            }
         }
     } catch(e) {
+        jrhPreviousStationDiag("snapshot-exception", "snapshot: exception=" + e);
         return null;
     }
 
     if(route == null || !isFinite(currentIndex) || currentIndex <= 0) {
+        jrhPreviousStationDiag(
+            "snapshot-invalid:" + String(arrival.departureIndex()),
+            "snapshot: unavailable route=" + String(arrival.routeId()) +
+            " platform=" + String(arrival.platformId()) +
+            " platformName=" + jrhText(arrival.platformName()) +
+            " currentIndex=" + currentIndex);
         return null;
     }
 
-    return {
+    let snapshot = {
         currentIndex: Math.floor(currentIndex),
-        currentStationName: currentStationName,
-        routeName: jrhPreviousStationHttpText(arrival.routeName()),
-        routeNumber: jrhPreviousStationHttpText(arrival.routeNumber()),
+        currentPlatformName: jrhText(arrival.platformName()),
+        routeName: jrhText(arrival.routeName()),
+        routeNumber: jrhText(arrival.routeNumber()),
         routeColor: Number(arrival.routeColor()),
         departureIndex: String(arrival.departureIndex()),
         carCount: Number(arrival.carCount())
     };
+
+    let queryKey = jrhPreviousStationAsyncQueryKey(snapshot);
+    jrhPreviousStationDiag(
+        "snapshot:" + queryKey,
+        "snapshot: route=" + snapshot.routeName +
+        " number=" + snapshot.routeNumber +
+        " color=" + snapshot.routeColor +
+        " platform=" + snapshot.currentPlatformName +
+        " index=" + snapshot.currentIndex +
+        " departureIndex=" + snapshot.departureIndex +
+        " cars=" + snapshot.carCount);
+    return snapshot;
 }
 
 function jrhPreviousStationAsyncQueryKey(snapshot) {
     return snapshot.routeName + ":" + snapshot.routeNumber + ":" +
         snapshot.routeColor + ":" + snapshot.departureIndex + ":" +
-        snapshot.currentIndex + ":" + snapshot.currentStationName;
+        snapshot.currentIndex + ":" + snapshot.currentPlatformName;
 }
 
 function jrhPreviousStationAsyncRouteExactMatch(route, snapshot) {
     return route != null &&
-        jrhPreviousStationHttpText(route.name) == snapshot.routeName &&
+        jrhText(route.name) == snapshot.routeName &&
         Number(route.color) == snapshot.routeColor &&
-        jrhPreviousStationHttpText(route.number) == snapshot.routeNumber;
+        jrhPreviousStationAsyncHttpRouteNumber(route) == snapshot.routeNumber;
 }
 
 function jrhPreviousStationAsyncRouteLooseMatch(route, snapshot) {
     return route != null &&
-        jrhPreviousStationHttpText(route.name) == snapshot.routeName &&
+        jrhText(route.name) == snapshot.routeName &&
         Number(route.color) == snapshot.routeColor;
 }
 
+/** System Map route上で現在platformと同じindexを探し、1つ前のstation IDを返す。 */
 function jrhPreviousStationAsyncResolvePreviousStation(snapshot, currentTimeMs) {
+    let queryKey = jrhPreviousStationAsyncQueryKey(snapshot);
     let routes = jrhPreviousStationHttpGetRoutes(currentTimeMs);
     if(routes == null) {
+        jrhPreviousStationDiag("resolve:" + queryKey, "resolve: routes unavailable key=" + queryKey);
         return null;
     }
 
@@ -87,12 +124,19 @@ function jrhPreviousStationAsyncResolvePreviousStation(snapshot, currentTimeMs) 
 
     let candidates = exact.length > 0 ? exact : loose;
     let selected = null;
+    let candidatePlatforms = [];
 
-    // SimplifiedRouteとSystem Map routeは同じ停車順。現在駅名も一致する候補を優先する。
     for(let i = 0; i < candidates.length; i++) {
         let station = candidates[i].stations[snapshot.currentIndex];
-        if(station != null && snapshot.currentStationName != "" &&
-            jrhPreviousStationHttpText(station.name) == snapshot.currentStationName) {
+        if(station == null) {
+            continue;
+        }
+        if(candidatePlatforms.length < 6) {
+            candidatePlatforms.push(
+                jrhText(station.name) + "#" + jrhPreviousStationAsyncHttpRouteNumber(candidates[i]));
+        }
+        // System MapのRouteStation.nameはplatform名。
+        if(snapshot.currentPlatformName != "" && jrhText(station.name) == snapshot.currentPlatformName) {
             selected = candidates[i];
             break;
         }
@@ -101,31 +145,79 @@ function jrhPreviousStationAsyncResolvePreviousStation(snapshot, currentTimeMs) 
     if(selected == null && candidates.length == 1) {
         selected = candidates[0];
     }
-    if(selected == null || snapshot.currentIndex <= 0) {
+    if(selected == null) {
+        jrhPreviousStationDiag(
+            "resolve:" + queryKey,
+            "resolve: FAILED key=" + queryKey +
+            " routes=" + routes.length +
+            " exact=" + exact.length +
+            " loose=" + loose.length +
+            " candidates=" + candidates.length +
+            " currentPlatform=" + snapshot.currentPlatformName +
+            " candidatePlatforms=[" + candidatePlatforms.join(",") + "]");
         return null;
     }
 
     let previousStation = selected.stations[snapshot.currentIndex - 1];
+    let currentStation = selected.stations[snapshot.currentIndex];
     if(previousStation == null || previousStation.id == null) {
+        jrhPreviousStationDiag(
+            "resolve:" + queryKey,
+            "resolve: selected route but previous station is missing key=" + queryKey);
         return null;
     }
-    return String(previousStation.id);
+
+    let previousHex = String(previousStation.id);
+    jrhPreviousStationDiag(
+        "resolve:" + queryKey,
+        "resolve: OK key=" + queryKey +
+        " exact=" + exact.length +
+        " loose=" + loose.length +
+        " current=" + (currentStation == null ? "" : jrhText(currentStation.name)) +
+        " previous=" + jrhText(previousStation.name) +
+        " previousStationHex=" + previousHex);
+    return previousHex;
 }
 
+/** 前駅のArrival一覧から同一便を検索する。 */
 function jrhPreviousStationAsyncFindSameService(httpSnapshot, snapshot) {
+    let queryKey = jrhPreviousStationAsyncQueryKey(snapshot);
     if(httpSnapshot == null || httpSnapshot.arrivals == null) {
+        jrhPreviousStationDiag("match:" + queryKey, "match: arrivals unavailable key=" + queryKey);
         return null;
     }
+
+    let total = httpSnapshot.arrivals.length;
+    let realtimeCount = 0;
+    let departureIndexCount = 0;
+    let routeCount = 0;
+    let routeNumberCount = 0;
+    let carCount = 0;
+    let samples = [];
 
     for(let i = 0; i < httpSnapshot.arrivals.length; i++) {
         let candidate = httpSnapshot.arrivals[i];
-        if(candidate == null || candidate.realtime !== true) {
+        if(candidate == null) {
             continue;
         }
 
-        // departureIndexは通常小さい値だが、JSON Number化によるlong精度問題を避けるため
-        // 文字列表現も併用する。数値化後が一致する場合も許容する。
-        let departureIndexMatches = jrhPreviousStationHttpText(candidate.departureIndex) == snapshot.departureIndex;
+        if(samples.length < 5) {
+            samples.push(
+                "{rt=" + candidate.realtime +
+                ",depIdx=" + jrhText(candidate.departureIndex) +
+                ",route=" + jrhText(candidate.routeName) +
+                ",no=" + jrhText(candidate.routeNumber) +
+                ",color=" + candidate.routeColor +
+                ",platform=" + jrhText(candidate.platformName) +
+                ",cars=" + (candidate.cars == null ? 0 : candidate.cars.length) + "}");
+        }
+
+        if(candidate.realtime !== true) {
+            continue;
+        }
+        realtimeCount++;
+
+        let departureIndexMatches = jrhText(candidate.departureIndex) == snapshot.departureIndex;
         if(!departureIndexMatches) {
             let candidateIndexNumber = Number(candidate.departureIndex);
             let snapshotIndexNumber = Number(snapshot.departureIndex);
@@ -135,25 +227,47 @@ function jrhPreviousStationAsyncFindSameService(httpSnapshot, snapshot) {
         if(!departureIndexMatches) {
             continue;
         }
+        departureIndexCount++;
 
-        if(jrhPreviousStationHttpText(candidate.routeName) != snapshot.routeName ||
+        if(jrhText(candidate.routeName) != snapshot.routeName ||
             Number(candidate.routeColor) != snapshot.routeColor) {
             continue;
         }
+        routeCount++;
 
-        let candidateRouteNumber = jrhPreviousStationHttpText(candidate.routeNumber);
+        let candidateRouteNumber = jrhText(candidate.routeNumber);
         if(snapshot.routeNumber != "" && candidateRouteNumber != "" &&
             candidateRouteNumber != snapshot.routeNumber) {
             continue;
         }
+        routeNumberCount++;
 
         if(snapshot.carCount > 0 && candidate.cars != null && candidate.cars.length > 0 &&
             candidate.cars.length != snapshot.carCount) {
             continue;
         }
+        carCount++;
 
+        jrhPreviousStationDiag(
+            "match:" + queryKey,
+            "match: OK key=" + queryKey +
+            " total=" + total +
+            " departure=" + candidate.departure +
+            " platform=" + jrhText(candidate.platformName) +
+            " realtime=" + candidate.realtime);
         return candidate;
     }
+
+    jrhPreviousStationDiag(
+        "match:" + queryKey,
+        "match: FAILED key=" + queryKey +
+        " total=" + total +
+        " realtime=" + realtimeCount +
+        " depIndex=" + departureIndexCount +
+        " route=" + routeCount +
+        " routeNumber=" + routeNumberCount +
+        " cars=" + carCount +
+        " samples=[" + samples.join(",") + "]");
     return null;
 }
 
@@ -162,12 +276,15 @@ function jrhPreviousStationAsyncFetch(queryKey, snapshotJson) {
         try {
             let snapshot = JSON.parse(String(snapshotJson));
             let now = new Date().getTime();
+            jrhPreviousStationDiag("fetch-start:" + queryKey, "fetch: start key=" + queryKey);
+
             let previousStationHex = jrhPreviousStationAsyncResolvePreviousStation(snapshot, now);
             if(previousStationHex == null) {
                 jrhPreviousStationAsyncResults.put(queryKey, JSON.stringify({
                     status: "unresolved",
                     fetchedAtMs: now
                 }));
+                jrhPreviousStationDiag("fetch-result:" + queryKey, "fetch: status=unresolved key=" + queryKey);
                 return;
             }
 
@@ -177,6 +294,10 @@ function jrhPreviousStationAsyncFetch(queryKey, snapshotJson) {
                     status: "unavailable",
                     fetchedAtMs: new Date().getTime()
                 }));
+                jrhPreviousStationDiag(
+                    "fetch-result:" + queryKey,
+                    "fetch: status=unavailable key=" + queryKey +
+                    " previousStationHex=" + previousStationHex);
                 return;
             }
 
@@ -190,8 +311,19 @@ function jrhPreviousStationAsyncFetch(queryKey, snapshotJson) {
                         departureTimeMs: departureTimeMs,
                         fetchedAtMs: stationSnapshot.fetchedAtMs
                     }));
+                    jrhPreviousStationDiag(
+                        "fetch-result:" + queryKey,
+                        "fetch: status=tracking key=" + queryKey +
+                        " previousStationHex=" + previousStationHex +
+                        " departureCore=" + match.departure +
+                        " departureLocal=" + departureTimeMs);
                     return;
                 }
+                jrhPreviousStationDiag(
+                    "time-map:" + queryKey,
+                    "fetch: matched service but departure time mapping failed key=" + queryKey +
+                    " departure=" + match.departure +
+                    " currentTime=" + stationSnapshot.currentTime);
             }
 
             jrhPreviousStationAsyncResults.put(queryKey, JSON.stringify({
@@ -199,6 +331,11 @@ function jrhPreviousStationAsyncFetch(queryKey, snapshotJson) {
                 previousStationHex: previousStationHex,
                 fetchedAtMs: stationSnapshot.fetchedAtMs
             }));
+            jrhPreviousStationDiag(
+                "fetch-result:" + queryKey,
+                "fetch: status=missing key=" + queryKey +
+                " previousStationHex=" + previousStationHex +
+                " arrivals=" + (stationSnapshot.arrivals == null ? 0 : stationSnapshot.arrivals.length));
         } catch(e) {
             try {
                 jrhPreviousStationAsyncResults.put(queryKey, JSON.stringify({
@@ -206,6 +343,9 @@ function jrhPreviousStationAsyncFetch(queryKey, snapshotJson) {
                     message: String(e),
                     fetchedAtMs: new Date().getTime()
                 }));
+                jrhPreviousStationDiag(
+                    "fetch-result:" + queryKey,
+                    "fetch: status=error key=" + queryKey + " error=" + e);
             } catch(ignored) {
             }
         } finally {
@@ -230,15 +370,39 @@ function jrhPreviousStationAsyncSchedule(snapshot, currentTimeMs) {
     } catch(e) {
         jrhPreviousStationAsyncInFlight.remove(queryKey);
         jrhPreviousStationAsyncNextRequestAt[queryKey] = currentTimeMs + jrhPreviousStationHttpFailureRetryMs;
+        jrhPreviousStationDiag("schedule:" + queryKey, "schedule: failed key=" + queryKey + " error=" + e);
     }
     return queryKey;
 }
 
-/**
- * render側はHTTPを実行せず、BackgroundWorkerの直近結果だけで状態を更新する。
- */
+function jrhPreviousStationAsyncReadResult(queryKey) {
+    let resultJson = jrhPreviousStationAsyncResults.get(queryKey);
+    if(resultJson == null) {
+        return null;
+    }
+    try {
+        return JSON.parse(String(resultJson));
+    } catch(e) {
+        jrhPreviousStationDiag("result-json:" + queryKey, "result: invalid JSON key=" + queryKey + " error=" + e);
+        return null;
+    }
+}
+
+function jrhPreviousStationAsyncLogRenderState(queryKey, result, record) {
+    jrhPreviousStationDiag(
+        "render:" + queryKey,
+        "render: key=" + queryKey +
+        " httpStatus=" + (result == null || result.status == null ? "none" : String(result.status)) +
+        " source=" + (record == null ? "null" : String(record.source)) +
+        " trackedDeparture=" + (record == null ? "null" : String(record.trackedDepartureTimeMs)) +
+        " departureTime=" + (record == null ? "null" : String(record.departureTimeMs)) +
+        " locked=" + (record == null ? "false" : String(record.departureLocked)) +
+        " displayStarted=" + (record == null ? "null" : String(record.displayStartedAtMs)) +
+        " displayCompleted=" + (record == null ? "false" : String(record.displayCompleted)));
+}
+
+/** render側はHTTPを待たず、BackgroundWorkerの直近結果だけで前駅発車stateを更新する。 */
 updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
-    let store = getPreviousStationDepartureStore(state);
     let seen = {};
 
     for(let i = 0; i < arrivals.length; i++) {
@@ -253,44 +417,23 @@ updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
         }
         seen[key] = true;
 
-        let record = store[key];
-        if(record == null) {
-            record = {
-                departureTimeMs: null,
-                trackedDepartureTimeMs: null,
-                departureLocked: false,
-                displayStartedAtMs: null,
-                displayCompleted: false,
-                source: null,
-                lastSeenAtMs: currentTimeMs,
-                lastHttpSeenAtMs: null
-            };
-            store[key] = record;
-        }
-        record.lastSeenAtMs = currentTimeMs;
-
-        if(record.departureLocked) {
-            continue;
-        }
-
+        let record = jrhGetOrCreatePreviousStationDepartureRecord(arrival, state, currentTimeMs);
         let snapshot = jrhPreviousStationAsyncSnapshot(arrival);
         if(snapshot == null) {
             continue;
         }
+        let queryKey = jrhPreviousStationAsyncQueryKey(snapshot);
 
-        let queryKey = jrhPreviousStationAsyncSchedule(snapshot, currentTimeMs);
-        let resultJson = jrhPreviousStationAsyncResults.get(queryKey);
-        if(resultJson == null) {
+        if(record.departureLocked) {
+            jrhPreviousStationAsyncLogRenderState(
+                queryKey, jrhPreviousStationAsyncReadResult(queryKey), record);
             continue;
         }
 
-        let result = null;
-        try {
-            result = JSON.parse(String(resultJson));
-        } catch(e) {
-            continue;
-        }
+        jrhPreviousStationAsyncSchedule(snapshot, currentTimeMs);
+        let result = jrhPreviousStationAsyncReadResult(queryKey);
         if(result == null) {
+            jrhPreviousStationAsyncLogRenderState(queryKey, null, record);
             continue;
         }
 
@@ -298,12 +441,13 @@ updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
             let departureTimeMs = Number(result.departureTimeMs);
             let fetchedAtMs = Number(result.fetchedAtMs);
             if(isFinite(departureTimeMs) && isFinite(fetchedAtMs)) {
-                // 追跡中は表示確定しない。
+                // 追跡中の予測時刻は表示判定へ渡さない。
                 record.departureTimeMs = null;
                 record.trackedDepartureTimeMs = departureTimeMs;
                 record.lastHttpSeenAtMs = fetchedAtMs;
                 record.source = "core-http-async-tracking";
             }
+            jrhPreviousStationAsyncLogRenderState(queryKey, result, record);
             continue;
         }
 
@@ -322,15 +466,9 @@ updatePreviousStationDepartureCache = function(arrivals, state, currentTimeMs) {
                     " departureIndex=" + arrival.departureIndex());
             }
         }
+
+        jrhPreviousStationAsyncLogRenderState(queryKey, result, record);
     }
 
-    for(let key in store) {
-        let record = store[key];
-        if(record == null || currentTimeMs - record.lastSeenAtMs > jrhPreviousStationStateKeepMs) {
-            delete store[key];
-            if(state.jrhPreviousStationDebug != null) {
-                delete state.jrhPreviousStationDebug[key];
-            }
-        }
-    }
+    jrhCleanupPreviousStationDepartureStore(state, currentTimeMs);
 };
