@@ -5,51 +5,6 @@ include(Resources.id("jsblock:scripts/jrh_pids_common.js"));
 const jrhHomeMessageSwitchIntervalMs = 15000;
 const jrhPreviousStationDepartureDefaultText = "隣の駅を出ました。";
 const jrhPreviousStationBlinkCount = 4;
-const jrhPreviousStationStateKeepMs = 60000;
-
-/** JCMのscriptDebugModeが有効な場合だけ前駅診断を出す。 */
-function jrhPreviousStationDebug(state, key, message) {
-    if(state.jrhPreviousStationDebug == null) {
-        state.jrhPreviousStationDebug = {};
-    }
-    if(state.jrhPreviousStationDebug[key] == message) {
-        return;
-    }
-    state.jrhPreviousStationDebug[key] = message;
-    console.debug("[JRHPIDS previous-station] " + message);
-}
-
-/** 前駅departureTime()と表示状態を保持するPIDSインスタンス状態を返す。 */
-function getPreviousStationDepartureStore(state) {
-    if(state.jrhPreviousStationDepartures == null) {
-        state.jrhPreviousStationDepartures = {};
-    }
-    return state.jrhPreviousStationDepartures;
-}
-
-/** Arrivalの補正時刻を含めず、同じ便を継続追跡するキーを作る。 */
-function getPreviousStationServiceKey(arrival) {
-    return String(arrival.departureIndex()) + ":" +
-        String(arrival.routeId()) + ":" +
-        String(arrival.platformId()) + ":" +
-        String(arrival.carCount());
-}
-
-/** 指定Arrivalについて保存済みの前駅departureTime()と表示状態を返す。 */
-function getPreviousStationDepartureRecord(arrival, state) {
-    if(arrival == null || arrival.terminating() || state.jrhPreviousStationDepartures == null) {
-        return null;
-    }
-    let record = state.jrhPreviousStationDepartures[getPreviousStationServiceKey(arrival)];
-    return record == null ? null : record;
-}
-
-/**
- * 前駅推定スクリプトが読み込めなかった場合のfail-safe。
- * 旧ArrivalsCache直アクセスへは戻さず、前駅案内だけを無効化する。
- */
-function updatePreviousStationDepartureCache(arrivals, state, currentTimeMs) {
-}
 
 /** ホーム発車標全体を描画する。 */
 function jrhHomeRender(ctx, state, pids, theme) {
