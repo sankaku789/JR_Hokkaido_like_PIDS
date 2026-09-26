@@ -3,6 +3,7 @@
 include(Resources.id("jsblock:scripts/jrh_pids_common.js"));
 
 const jrhLcdMessageSwitchIntervalMs = 15000;
+const LCD_MESSAGE_SCROLL_MIN_CHARS = 22;
 
 /** LCD発車標全体を描画する。 */
 function jrhLcdRender(ctx, state, pids, theme) {
@@ -62,7 +63,7 @@ function jrhLcdRender(ctx, state, pids, theme) {
             let hasSecondMessage = secondMessage != null && secondMessage.trim() != "";
             let secondMessageText = currentLanguage(secondMessage, languageIndex);
             let secondRowHidden = pids.isRowHidden(1);
-            let secondMessageScrolls = Array.from(secondMessageText).length >= MESSAGE_SCROLL_MIN_CHARS;
+            let secondMessageScrolls = Array.from(secondMessageText).length >= LCD_MESSAGE_SCROLL_MIN_CHARS;
             let secondMessageDurationMs = secondMessageScrolls
                 ? getMessageMarqueeDuration(secondMessageText) * 1000
                 : jrhLcdMessageSwitchIntervalMs;
@@ -137,7 +138,7 @@ function jrhLcdDrawMessageRow(ctx, message, rowY, rowHeight, w, unit, theme, mar
         .size((w - 20) / scale, 9)
         .scale(scale)
         .leftAlign();
-    if(Array.from(message).length >= MESSAGE_SCROLL_MIN_CHARS) {
+    if(Array.from(message).length >= LCD_MESSAGE_SCROLL_MIN_CHARS) {
         text.marquee(getMessageMarqueeDuration(message));
         if(marqueeProgress != null) {
             text.withMarqueeProgress(marqueeProgress);
