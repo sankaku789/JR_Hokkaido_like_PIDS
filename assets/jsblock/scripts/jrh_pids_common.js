@@ -382,6 +382,10 @@ function getTopArrivalsByDepartureTime(pids, excludeTerminating, limit) {
         if(excludeTerminating && arrival.terminating()) {
             continue;
         }
+        // MTR excludes hidden routes from the client's simplified route list.
+        if(jrhGetRoute(arrival) == null) {
+            continue;
+        }
 
         let departureTime = Number(arrival.departureTime());
         let insertAt = result.length;
