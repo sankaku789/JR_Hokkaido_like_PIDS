@@ -382,8 +382,8 @@ function getTopArrivalsByDepartureTime(pids, excludeTerminating, limit) {
         if(excludeTerminating && arrival.terminating()) {
             continue;
         }
-        // MTR excludes hidden routes from the client's simplified route list.
-        if(jrhGetRoute(arrival) == null) {
+        // Use the current route list: MTR's ID map can retain routes hidden later.
+        if(arrival.route() == null) {
             continue;
         }
 
