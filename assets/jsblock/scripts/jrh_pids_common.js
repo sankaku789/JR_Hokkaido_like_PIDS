@@ -269,6 +269,10 @@ function currentDestination(arrival, languageIndex) {
     }
 
     let destination = String(destinationValue).trim();
+    // Preserve explicitly supplied translations, including custom destination text.
+    if(destination.indexOf("|") >= 0) {
+        return currentLanguage(destination, languageIndex);
+    }
     let routeId = String(arrival.routeId());
     let cacheKey = "r" + routeId + ":d" + destination;
     let currentTimeMs = new Date().getTime();
@@ -366,8 +370,14 @@ function getMessageMarqueeDuration(message) {
     return scrollDistanceInCharacters * secondsPerCharacter;
 }
 
+/** hidden routeまたは終端列車を回送として扱う。 */
+function jrhIsOutOfService(arrival) {
+    // Use the current route list: MTR's ID map can retain routes hidden later.
+    return arrival.terminating() || arrival.route() == null;
+}
+
 /** 表示に必要な上位件数だけを発車時刻順で取得する。 */
-function getTopArrivalsByDepartureTime(pids, excludeTerminating, limit) {
+function getTopArrivalsByDepartureTime(pids, excludeOutOfService, limit) {
     let result = [];
     if(limit <= 0) {
         return result;
@@ -379,11 +389,7 @@ function getTopArrivalsByDepartureTime(pids, excludeTerminating, limit) {
         if(arrival == null) {
             break;
         }
-        if(excludeTerminating && arrival.terminating()) {
-            continue;
-        }
-        // Use the current route list: MTR's ID map can retain routes hidden later.
-        if(arrival.route() == null) {
+        if(excludeOutOfService && jrhIsOutOfService(arrival)) {
             continue;
         }
 

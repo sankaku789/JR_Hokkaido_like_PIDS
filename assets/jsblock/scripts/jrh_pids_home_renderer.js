@@ -159,7 +159,7 @@ function jrhHomeRender(ctx, state, pids, theme) {
 
 /** ホーム発車標の列車情報1行を描画する。 */
 function jrhHomeDrawArrivalRow(ctx, pids, arrival, row, rowY, sx, sy, unit, theme, languageIndex, showDelay) {
-    if(arrival.terminating()) {
+    if(jrhIsOutOfService(arrival)) {
         let outOfServiceText = SCRIPT_INPUT.outOfServiceText == null
             ? "回送|Out Of Service" : SCRIPT_INPUT.outOfServiceText;
         drawText(ctx, "Out of service " + row,
